@@ -1,0 +1,532 @@
+<title>감정평가 견적서 작성기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
+<style>
+/* Layout: 왼쪽은 입력 패널, 오른쪽은 A4 견적서 미리보기 (좁은 화면에서는 위아래로 쌓임) */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --paper: #ffffff;
+  --ink: #1b2430;
+  --muted: #5d6877;
+  --line: #d3d8df;
+  --line-strong: #2b3a4d;
+  --accent: #1f4e79;
+  --accent-soft: #e3ecf5;
+  --head: #e9eef4;
+  --warn: #9a5b00;
+  --warn-soft: #fff4dc;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-doc: "Noto Serif KR", "Batang", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161c; --panel: #1a2029; --paper: #f7f7f5; --ink: #e4e8ee; --muted: #9aa5b4;
+    --line: #313a47; --line-strong: #2b3a4d; --accent: #8fb6dd; --accent-soft: #1f2d3d; --head: #e9eef4;
+    --warn: #f0c060; --warn-soft: #3a2f17; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161c; --panel: #1a2029; --paper: #f7f7f5; --ink: #e4e8ee; --muted: #9aa5b4;
+  --line: #313a47; --line-strong: #2b3a4d; --accent: #8fb6dd; --accent-soft: #1f2d3d; --head: #e9eef4;
+  --warn: #f0c060; --warn-soft: #3a2f17; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+.wrap { padding-inline: 16px; padding-block: 20px 40px; max-width: 1360px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 960px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+header.app { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; justify-content: space-between; }
+header.app h1 { font-family: var(--font-doc); font-size: 22px; margin: 0; text-wrap: balance; }
+header.app p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* 입력 패널 */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 18px 18px; min-width: 0; }
+.panel section { padding-block: 14px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.panel section:last-child { border-bottom: 0; }
+.panel h2 { font-size: 12px; letter-spacing: .08em; color: var(--accent); margin: 0; font-weight: 600; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row.three { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 420px) { .row, .row.three { grid-template-columns: 1fr; } }
+label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+input, select, textarea { font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0; }
+textarea { resize: vertical; min-height: 64px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input.num { text-align: right; font-variant-numeric: tabular-nums; }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink); }
+.check input { width: auto; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--ink); padding: 8px 4px; font: inherit; font-size: 13px; cursor: pointer; display: grid; gap: 1px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+.hint b { color: var(--ink); font-weight: 600; }
+.item { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.item-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+.btn { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.btn.primary:hover { color: var(--panel); opacity: .9; }
+.btn.link { border: 0; padding: 2px 4px; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.toast { font-size: 12px; color: var(--accent); min-height: 1em; }
+
+/* 견적서 미리보기 — 종이는 테마와 무관하게 흰 바탕 */
+.paper-wrap { min-width: 0; overflow-x: auto; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 960px) { .paper-wrap { position: static; } }
+.paper { --ink: #1b2430; --muted: #5d6877; --line: #b9c0ca; background: var(--paper); color: var(--ink); width: 100%; max-width: 794px; min-width: 560px; margin: 0 auto; padding: 44px 48px 36px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(20,30,45,.12); border-radius: 2px; font-size: 13px; }
+.paper .docno { font-size: 11px; color: var(--muted); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.paper h3.title { font-family: var(--font-doc); font-size: 26px; text-align: center; margin: 6px 0 22px; letter-spacing: .04em; }
+.paper table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.paper td, .paper th { border: 1px solid var(--line-strong); padding: 7px 10px; vertical-align: middle; }
+.paper th { background: var(--head); font-weight: 600; white-space: nowrap; }
+.paper .info th { width: 26%; letter-spacing: .3em; text-align: center; }
+.paper .info td { font-weight: 500; }
+.paper .bar { margin: 22px 0 6px; font-weight: 700; font-size: 14px; padding-left: 8px; border-left: 4px solid var(--line-strong); }
+.paper .grid th { text-align: center; font-size: 12px; }
+.paper .grid td { text-align: center; }
+.paper .grid td.l { text-align: left; }
+.paper .grid td.r, .paper .fee td.r { text-align: right; }
+.paper .opinion { border: 1px solid var(--line-strong); padding: 10px 12px; line-height: 1.7; white-space: pre-wrap; }
+.paper .fee th { text-align: left; width: 22%; }
+.paper .fee td.r { width: 26%; font-weight: 500; }
+.paper .fee td.note { color: var(--muted); font-size: 12px; }
+.paper .fee tr.total th, .paper .fee tr.total td { background: var(--head); font-weight: 700; }
+.paper .fee tr.total td.r { font-size: 15px; }
+.paper .foot { margin-top: 28px; text-align: center; line-height: 1.7; white-space: pre-line; font-size: 12.5px; }
+.paper .foot .firm { font-family: var(--font-doc); font-size: 15px; font-weight: 700; }
+.paper .bank { margin-top: 6px; text-align: center; font-size: 12px; color: var(--muted); }
+.mismatch { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+@media print {
+  body { background: #fff; }
+  .wrap { display: block; padding: 0; }
+  header.app, .panel { display: none; }
+  .paper { box-shadow: none; min-width: 0; max-width: none; padding: 0; }
+  .paper-wrap { position: static; overflow: visible; }
+  @page { size: A4; margin: 16mm 14mm; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="app">
+    <h1>감정평가 견적서 작성기</h1>
+    <p>수수료: 감정평가 보수기준 요율표 · 여비: 2024년 서울지회 여비 기준(2024.07.26)</p>
+  </header>
+
+  <form class="panel" id="form" autocomplete="off">
+    <section>
+      <h2>기본 정보</h2>
+      <div class="row">
+        <label>평가법인
+          <select id="firm"></select>
+        </label>
+        <label>견적번호
+          <input id="docno">
+        </label>
+      </div>
+      <div class="row">
+        <label>물건 종류 (제목)
+          <input id="kind" list="kinds">
+          <datalist id="kinds"><option value="부동산"><option value="아파트"><option value="토지"><option value="분양권"><option value="기계기구"><option value="공장"></datalist>
+        </label>
+        <label>담당 감정평가사
+          <input id="appraiser">
+        </label>
+      </div>
+      <label>의뢰처
+        <input id="client" placeholder="예: 홍길동님 귀하 (없으면 -)">
+      </label>
+      <label>소재지 (요약)
+        <input id="address" placeholder="비워두면 첫 번째 물건 소재지를 사용">
+      </label>
+    </section>
+
+    <section>
+      <h2>탁상감정 결과</h2>
+      <div id="items" style="display:grid;gap:10px"></div>
+      <div class="actions"><button type="button" class="btn" id="addItem">+ 물건 추가</button></div>
+      <p class="hint">기초가액(합계) <b id="baseHint">0원</b></p>
+    </section>
+
+    <section>
+      <h2>평가수수료</h2>
+      <div class="seg" role="group" aria-label="적용 요율">
+        <button type="button" data-rate="0.8" aria-pressed="false">하한 0.8<small id="r08"></small></button>
+        <button type="button" data-rate="1.0" aria-pressed="true">기준 1.0<small id="r10"></small></button>
+        <button type="button" data-rate="1.2" aria-pressed="false">상한 1.2<small id="r12"></small></button>
+      </div>
+      <p class="hint" id="feeHint"></p>
+    </section>
+
+    <section>
+      <h2>여비 (출장비)</h2>
+      <div class="row">
+        <label>시·도
+          <select id="sido"></select>
+        </label>
+        <label>시·군·구
+          <select id="sgg"></select>
+        </label>
+      </div>
+      <div class="row">
+        <label>출장일수
+          <input id="days" type="number" min="1" step="1" class="num">
+        </label>
+        <label>여비 표시 문구
+          <input id="travelNote" placeholder="자동">
+        </label>
+      </div>
+      <p class="hint" id="travelHint"></p>
+      <label class="check"><input type="checkbox" id="travelManual"> 여비 직접 입력 (도서지역 선박·항공료 등)</label>
+      <label id="travelManualWrap" hidden>여비 금액(원)
+        <input id="travelAmt" class="num" inputmode="numeric">
+      </label>
+    </section>
+
+    <section>
+      <h2>실비 · 의견</h2>
+      <div class="row">
+        <label>실비(원)
+          <input id="expense" class="num" inputmode="numeric">
+        </label>
+        <label>실비 내용
+          <input id="expenseNote">
+        </label>
+      </div>
+      <div class="row">
+        <label>예상 소요일
+          <input id="period" placeholder="예: 5~7일">
+        </label>
+        <label>예상수수료 표기 (상단)
+          <select id="feeRound">
+            <option value="round">만원 단위 반올림</option>
+            <option value="floor">만원 단위 버림</option>
+          </select>
+        </label>
+      </div>
+      <label>탁상감정 의견
+        <textarea id="opinion" rows="4"></textarea>
+      </label>
+    </section>
+
+    <section>
+      <div class="actions">
+        <button type="button" class="btn primary" id="copyText">견적 내용 복사</button>
+        <button type="button" class="btn" id="sample">예시 불러오기</button>
+        <button type="button" class="btn" id="reset">새 견적서</button>
+      </div>
+      <div class="toast" id="toast" role="status"></div>
+      <textarea id="copyFallback" rows="6" hidden readonly></textarea>
+    </section>
+  </form>
+
+  <div class="paper-wrap">
+    <article class="paper" id="paper" aria-label="견적서 미리보기">
+      <div class="docno" id="p_docno"></div>
+      <h3 class="title" id="p_title"></h3>
+      <table class="info">
+        <tr><th>의뢰처</th><td id="p_client"></td></tr>
+        <tr><th>담당자</th><td id="p_appraiser"></td></tr>
+        <tr><th>소재지</th><td id="p_address"></td></tr>
+        <tr><th style="letter-spacing:0">예상감정평가액</th><td id="p_valueShort"></td></tr>
+        <tr><th style="letter-spacing:.1em">예상수수료</th><td id="p_feeShort"></td></tr>
+      </table>
+
+      <div class="bar">탁상감정결과</div>
+      <table class="grid">
+        <thead><tr><th>구분</th><th>소재지</th><th>종류</th><th>면적(㎡)</th><th>예상감정평가액(원)</th></tr></thead>
+        <tbody id="p_items"></tbody>
+      </table>
+
+      <div class="bar">탁상감정 의견</div>
+      <div class="opinion" id="p_opinion"></div>
+
+      <div class="bar">예상수수료</div>
+      <table class="fee">
+        <tr><th>기초가액</th><td class="r" id="f_base"></td><td class="note">= 예상 감정평가액</td></tr>
+        <tr><th>= 평가수수료</th><td class="r" id="f_fee"></td><td class="note" id="f_feeNote"></td></tr>
+        <tr><th>+ 여비</th><td class="r" id="f_travel"></td><td class="note" id="f_travelNote"></td></tr>
+        <tr><th>+ 실비</th><td class="r" id="f_exp"></td><td class="note" id="f_expNote"></td></tr>
+        <tr><th>= 공급가액</th><td class="r" id="f_supply"></td><td class="note">= 평가수수료 + 여비 + 실비 (백원 단위 절사)</td></tr>
+        <tr><th>+ 부가가치세</th><td class="r" id="f_vat"></td><td class="note">= 공급가액 × 10%</td></tr>
+        <tr class="total"><th>예상수수료</th><td class="r" id="f_total"></td><td class="note">= 공급가액 + 부가가치세</td></tr>
+      </table>
+
+      <div class="foot" id="p_foot"></div>
+      <div class="bank" id="p_bank"></div>
+    </article>
+  </div>
+</div>
+
+<script>
+const REGIONS = [["서울특별시","종로구",40000,0,0,0,0],["서울특별시","중구",40000,0,0,0,0],["서울특별시","용산구",40000,0,0,0,0],["서울특별시","성동구",40000,0,0,0,0],["서울특별시","광진구",40000,0,0,0,0],["서울특별시","동대문구",40000,0,0,0,0],["서울특별시","중랑구",40000,0,0,0,0],["서울특별시","성북구",40000,0,0,0,0],["서울특별시","강북구",40000,0,0,0,0],["서울특별시","도봉구",40000,0,0,0,0],["서울특별시","노원구",40000,0,0,0,0],["서울특별시","은평구",40000,0,0,0,0],["서울특별시","서대문구",40000,0,0,0,0],["서울특별시","마포구",40000,0,0,0,0],["서울특별시","양천구",40000,0,0,0,0],["서울특별시","강서구",40000,0,0,0,0],["서울특별시","구로구",40000,0,0,0,0],["서울특별시","금천구",40000,0,0,0,0],["서울특별시","영등포구",40000,0,0,0,0],["서울특별시","동작구",40000,0,0,0,0],["서울특별시","관악구",40000,0,0,0,0],["서울특별시","서초구",40000,0,0,0,0],["서울특별시","강남구",40000,0,0,0,0],["서울특별시","송파구",40000,0,0,0,0],["서울특별시","강동구",40000,0,0,0,0],["부산광역시","중구",115800,35000,20000,30000,60000],["부산광역시","서구",115800,35000,20000,30000,60000],["부산광역시","동구",115800,35000,20000,30000,60000],["부산광역시","영도구",115800,35000,20000,30000,60000],["부산광역시","부산진구",115800,35000,20000,30000,60000],["부산광역시","동래구",115800,35000,20000,30000,60000],["부산광역시","남구",115800,35000,20000,30000,60000],["부산광역시","북구",115800,35000,20000,30000,60000],["부산광역시","해운대구",115800,35000,20000,30000,60000],["부산광역시","사하구",115800,35000,20000,30000,60000],["부산광역시","금정구",115800,35000,20000,30000,60000],["부산광역시","강서구",115800,35000,20000,30000,60000],["부산광역시","연제구",115800,35000,20000,30000,60000],["부산광역시","수영구",115800,35000,20000,30000,60000],["부산광역시","사상구",115800,35000,20000,30000,60000],["부산광역시","기장군",115800,35000,20000,30000,60000],["대구광역시","중구",89600,35000,20000,30000,60000],["대구광역시","동구",89600,35000,20000,30000,60000],["대구광역시","서구",89600,35000,20000,30000,60000],["대구광역시","남구",89600,35000,20000,30000,60000],["대구광역시","북구",89600,35000,20000,30000,60000],["대구광역시","수성구",89600,35000,20000,30000,60000],["대구광역시","달서구",89600,35000,20000,30000,60000],["대구광역시","달성군",89600,35000,20000,30000,60000],["인천광역시","중구",15400,35000,20000,30000,0],["인천광역시","동구",15400,35000,20000,30000,0],["인천광역시","남구",15400,35000,20000,30000,0],["인천광역시","미추홀구",15400,35000,20000,30000,0],["인천광역시","연수구",15400,35000,20000,30000,0],["인천광역시","남동구",15400,35000,20000,30000,0],["인천광역시","부평구",15400,35000,20000,30000,0],["인천광역시","계양구",15400,35000,20000,30000,0],["인천광역시","서구",15400,35000,20000,30000,0],["인천광역시","강화군",20600,35000,20000,30000,0],["인천광역시","옹진군",40600,35000,20000,30000,0],["인천광역시","중구 (교통비 38,600원)",38600,35000,20000,30000,0],["광주광역시","동구",84400,35000,20000,30000,60000],["광주광역시","서구",84400,35000,20000,30000,60000],["광주광역시","남구",84400,35000,20000,30000,60000],["광주광역시","북구",84400,35000,20000,30000,60000],["광주광역시","광산구",84400,35000,20000,30000,60000],["대전광역시","동구",54600,35000,20000,30000,60000],["대전광역시","중구",54600,35000,20000,30000,60000],["대전광역시","서구",54600,35000,20000,30000,60000],["대전광역시","유성구",54600,35000,20000,30000,60000],["대전광역시","대덕구",54600,35000,20000,30000,60000],["울산광역시","중구",87000,35000,20000,30000,60000],["울산광역시","남구",87000,35000,20000,30000,60000],["울산광역시","동구",87000,35000,20000,30000,60000],["울산광역시","북구",87000,35000,20000,30000,60000],["울산광역시","울주군",87000,35000,20000,30000,60000],["세종특별자치시","",50400,35000,20000,30000,70000],["경기도","수원시 장안구",20000,35000,20000,30000,0],["경기도","수원시 권선구",20000,35000,20000,30000,0],["경기도","수원시 팔달구",20000,35000,20000,30000,0],["경기도","수원시 영통구",20000,35000,20000,30000,0],["경기도","성남시 수정구",10600,35000,20000,30000,0],["경기도","성남시 중원구",10600,35000,20000,30000,0],["경기도","성남시 분당구",10600,35000,20000,30000,0],["경기도","의정부시",17400,35000,20000,30000,0],["경기도","안양시 만안구",10600,35000,20000,30000,0],["경기도","안양시 동안구",10600,35000,20000,30000,0],["경기도","부천시",14000,35000,20000,30000,0],["경기도","부천시 원미구",14000,35000,20000,30000,0],["경기도","부천시 소사구",14000,35000,20000,30000,0],["경기도","부천시 오정구",14000,35000,20000,30000,0],["경기도","광명시",10600,35000,20000,30000,0],["경기도","평택시",23400,35000,20000,30000,0],["경기도","동두천시",21600,35000,20000,30000,0],["경기도","안산시 상록구",20000,35000,20000,30000,0],["경기도","안산시 단원구",20000,35000,20000,30000,0],["경기도","고양시 덕양구",14600,35000,20000,30000,0],["경기도","고양시 일산동구",14600,35000,20000,30000,0],["경기도","고양시 일산서구",14600,35000,20000,30000,0],["경기도","과천시",10600,35000,20000,30000,0],["경기도","구리시",17400,35000,20000,30000,0],["경기도","남양주시",17400,35000,20000,30000,0],["경기도","오산시",23400,35000,20000,30000,0],["경기도","시흥시",14000,35000,20000,30000,0],["경기도","군포시",10600,35000,20000,30000,0],["경기도","의왕시",10600,35000,20000,30000,0],["경기도","하남시",14000,35000,20000,30000,0],["경기도","용인시 처인구",20000,35000,20000,30000,0],["경기도","용인시 기흥구",20000,35000,20000,30000,0],["경기도","용인시 수지구",20000,35000,20000,30000,0],["경기도","파주시",18000,35000,20000,30000,0],["경기도","이천시",18600,35000,20000,30000,0],["경기도","안성시",23400,35000,20000,30000,0],["경기도","김포시",18800,35000,20000,30000,0],["경기도","화성시",23400,35000,20000,30000,0],["경기도","광주시",15600,35000,20000,30000,0],["경기도","양주시",14600,35000,20000,30000,0],["경기도","포천시",21600,35000,20000,30000,0],["경기도","여주시",24200,35000,20000,30000,0],["경기도","연천군",24000,35000,20000,30000,0],["경기도","가평군",24400,35000,20000,30000,0],["경기도","양평군",20000,35000,20000,30000,0],["강원도","춘천시",33200,35000,20000,30000,70000],["강원도","원주시",34600,35000,20000,30000,70000],["강원도","강릉시",53600,35000,20000,30000,70000],["강원도","동해시",60200,35000,20000,30000,70000],["강원도","태백시",45800,35000,20000,30000,70000],["강원도","속초시",68800,35000,20000,30000,70000],["강원도","삼척시",63200,35000,20000,30000,70000],["강원도","홍천군",31800,35000,20000,30000,70000],["강원도","횡성군",30600,35000,20000,30000,70000],["강원도","영월군",41200,35000,20000,30000,70000],["강원도","평창군",52200,35000,20000,30000,70000],["강원도","정선군",53800,35000,20000,30000,70000],["강원도","철원군",28400,35000,20000,30000,70000],["강원도","화천군",46400,35000,20000,30000,70000],["강원도","양구군",35200,35000,20000,30000,70000],["강원도","인제군",45200,35000,20000,30000,70000],["강원도","고성군",63600,35000,20000,30000,70000],["강원도","양양군",67000,35000,20000,30000,70000],["충청북도","청주시 상당구",49600,35000,20000,30000,50000],["충청북도","청주시 서원구",49600,35000,20000,30000,50000],["충청북도","청주시 흥덕구",49600,35000,20000,30000,50000],["충청북도","청주시 청원구",49600,35000,20000,30000,50000],["충청북도","충주시",49600,35000,20000,30000,50000],["충청북도","제천시",37000,35000,20000,30000,50000],["충청북도","청원군",48400,35000,20000,30000,50000],["충청북도","보은군",54800,35000,20000,30000,50000],["충청북도","옥천군",58800,35000,20000,30000,50000],["충청북도","영동군",47800,35000,20000,30000,50000],["충청북도","증평군",49600,35000,20000,30000,50000],["충청북도","진천군",49600,35000,20000,30000,50000],["충청북도","괴산군",52000,35000,20000,30000,50000],["충청북도","음성군",49600,35000,20000,30000,50000],["충청북도","단양군",41000,35000,20000,30000,50000],["충청남도","천안시 동남구",36800,35000,20000,30000,50000],["충청남도","천안시 서북구",36800,35000,20000,30000,50000],["충청남도","공주시",50000,35000,20000,30000,50000],["충청남도","보령시",42600,35000,20000,30000,50000],["충청남도","아산시",36800,35000,20000,30000,50000],["충청남도","서산시",47400,35000,20000,30000,50000],["충청남도","논산시",62800,35000,20000,30000,50000],["충청남도","계룡시",58000,35000,20000,30000,50000],["충청남도","당진시",51200,35000,20000,30000,50000],["충청남도","금산군",50800,35000,20000,30000,50000],["충청남도","연기군",50400,35000,20000,30000,50000],["충청남도","부여군",70800,35000,20000,30000,50000],["충청남도","서천군",48800,35000,20000,30000,50000],["충청남도","청양군",49400,35000,20000,30000,50000],["충청남도","홍성군",46200,35000,20000,30000,50000],["충청남도","예산군",33200,35000,20000,30000,50000],["충청남도","태안군",57800,35000,20000,30000,50000],["전라북도","전주시 완산구",71800,35000,20000,30000,70000],["전라북도","전주시 덕진구",71800,35000,20000,30000,70000],["전라북도","군산시",70600,35000,20000,30000,70000],["전라북도","익산시",67600,35000,20000,30000,70000],["전라북도","정읍시",74800,35000,20000,30000,70000],["전라북도","남원시",81000,35000,20000,30000,70000],["전라북도","김제시",70400,35000,20000,30000,70000],["전라북도","완주군",75800,35000,20000,30000,70000],["전라북도","진안군",81000,35000,20000,30000,70000],["전라북도","무주군",62400,35000,20000,30000,70000],["전라북도","장수군",87000,35000,20000,30000,70000],["전라북도","임실군",77800,35000,20000,30000,70000],["전라북도","순창군",85000,35000,20000,30000,70000],["전라북도","고창군",79600,35000,20000,30000,70000],["전라북도","부안군",80600,35000,20000,30000,70000],["전라남도","목포시",93800,35000,20000,30000,50000],["전라남도","여수시",96200,35000,20000,30000,50000],["전라남도","순천시",90600,35000,20000,30000,50000],["전라남도","나주시",85200,35000,20000,30000,50000],["전라남도","광양시",97400,35000,20000,30000,50000],["전라남도","담양군",89000,35000,20000,30000,50000],["전라남도","곡성군",82400,35000,20000,30000,50000],["전라남도","구례군",85800,35000,20000,30000,50000],["전라남도","고흥군",100200,35000,20000,30000,50000],["전라남도","보성군",101200,35000,20000,30000,50000],["전라남도","화순군",88400,35000,20000,30000,50000],["전라남도","장흥군",89000,35000,20000,30000,50000],["전라남도","강진군",103400,35000,20000,30000,50000],["전라남도","해남군",106400,35000,20000,30000,50000],["전라남도","영암군",100800,35000,20000,30000,50000],["전라남도","무안군",93800,35000,20000,30000,50000],["전라남도","함평군",90400,35000,20000,30000,50000],["전라남도","영광군",94800,35000,20000,30000,50000],["전라남도","장성군",80400,35000,20000,30000,50000],["전라남도","완도군",117400,35000,20000,30000,50000],["전라남도","진도군",106800,35000,20000,30000,50000],["전라남도","신안군",92200,35000,20000,30000,50000],["경상북도","포항남구",103400,35000,20000,30000,50000],["경상북도","포항북구",103400,35000,20000,30000,50000],["경상북도","경주시",80400,35000,20000,30000,50000],["경상북도","김천시",74800,35000,20000,30000,50000],["경상북도","안동시",101600,35000,20000,30000,50000],["경상북도","구미시",74800,35000,20000,30000,50000],["경상북도","영주시",108000,35000,20000,30000,50000],["경상북도","영천시",97400,35000,20000,30000,50000],["경상북도","상주시",87800,35000,20000,30000,50000],["경상북도","문경시",91600,35000,20000,30000,50000],["경상북도","경산시",91600,35000,20000,30000,50000],["경상북도","군위군",100000,35000,20000,30000,50000],["경상북도","의성군",88400,35000,20000,30000,50000],["경상북도","청송군",97600,35000,20000,30000,50000],["경상북도","영양군",120600,35000,20000,30000,50000],["경상북도","영덕군",119800,35000,20000,30000,50000],["경상북도","청도군",94800,35000,20000,30000,50000],["경상북도","고령군",95400,35000,20000,30000,50000],["경상북도","성주군",82400,35000,20000,30000,50000],["경상북도","칠곡군",78800,35000,20000,30000,50000],["경상북도","예천군",85000,35000,20000,30000,50000],["경상북도","봉화군",86800,35000,20000,30000,50000],["경상북도","울진군",133000,35000,20000,30000,50000],["경상북도","울릉군",232400,35000,20000,30000,50000],["경상남도","창원시",110800,35000,20000,30000,50000],["경상남도","창원시 의창구",110800,35000,20000,30000,50000],["경상남도","창원시 성산구",110800,35000,20000,30000,50000],["경상남도","창원시 합포구",110800,35000,20000,30000,50000],["경상남도","창원시 회원구",110800,35000,20000,30000,50000],["경상남도","창원시 진해구",110800,35000,20000,30000,50000],["경상남도","진주시",125200,35000,20000,30000,50000],["경상남도","통영시",125600,35000,20000,30000,50000],["경상남도","사천시",119400,35000,20000,30000,50000],["경상남도","김해시",108200,35000,20000,30000,50000],["경상남도","밀양시",99000,35000,20000,30000,50000],["경상남도","거제시",128400,35000,20000,30000,50000],["경상남도","양산시",112400,35000,20000,30000,50000],["경상남도","의령군",115000,35000,20000,30000,50000],["경상남도","함안군",110400,35000,20000,30000,50000],["경상남도","창녕군",114200,35000,20000,30000,50000],["경상남도","고성군",117200,35000,20000,30000,50000],["경상남도","남해군",127200,35000,20000,30000,50000],["경상남도","하동군",125800,35000,20000,30000,50000],["경상남도","산청군",97200,35000,20000,30000,50000],["경상남도","함양군",95200,35000,20000,30000,50000],["경상남도","거창군",90800,35000,20000,30000,50000],["경상남도","합천군",101600,35000,20000,30000,50000],["제주특별자치도","제주시",11000,35000,20000,30000,70000],["제주특별자치도","서귀포시",23600,35000,20000,30000,70000]]; // [시도, 시군구, 교통비(왕복), 현지교통비, 일비, 식비, 숙박비(1박)]
+
+const FIRMS = [
+  { id: "HI", name: "하이테크감정평가법인 주식회사", short: "하이테크감정평가법인", appraiser: "이민수 감정평가사",
+    foot: "서울특별시 강남구 영동대로 511 트레이드타워 45층 6호\nTel) 02-6401-0706   Fax) 02-6971-9586",
+    bank: "국민은행 532001-01-294849 하이테크감정평가법인(주)" },
+  { id: "TB", name: "(주)감정평가법인 태백 서울지사", short: "", appraiser: "이민수 감정평가사",
+    foot: "서울특별시 강남구 강남대로 320, 1613호 (역삼동, 황화빌딩)\nTel) 02-1666-8499", bank: "" },
+  { id: "BA", name: "주식회사 바름감정평가법인", short: "바름감정평가법인", appraiser: "현보람 감정평가사",
+    foot: "서울특별시 강남구 삼성로104길 11, 4층", bank: "" },
+];
+
+// 감정평가 수수료 요율표: [구간 하한, 구간 상한, 요율(1만분의)]
+const BANDS = [
+  [5e7, 5e8, 11], [5e8, 1e9, 9], [1e9, 5e9, 8], [5e9, 1e10, 7], [1e10, 5e10, 6],
+  [5e10, 1e11, 5], [1e11, 3e11, 4], [3e11, 6e11, 3], [6e11, 1e12, 2], [1e12, Infinity, 1],
+];
+const MIN_FEE = 250000;
+const won = n => Math.round(n).toLocaleString("ko-KR");
+const eok = n => n >= 1e12 ? `${n / 1e12}조` : n >= 1e8 ? `${(n / 1e8).toLocaleString("ko-KR")}억` : `${(n / 1e4).toLocaleString("ko-KR")}만`;
+
+// 감정평가액 → 평가수수료 (천원 미만 절사). 구간별 누적액도 같은 배율로 계산한다.
+function appraisalFee(value, mult) {
+  if (!(value > 5e7)) return { fee: MIN_FEE, band: null, base: MIN_FEE };
+  let acc = MIN_FEE, band = null, cum = MIN_FEE;
+  for (const b of BANDS) {
+    if (value <= b[0]) break;
+    const part = Math.min(value, b[1]) - b[0];
+    if (value <= b[1]) { band = b; cum = acc; }
+    acc += part * b[2] / 10000 * mult;
+  }
+  return { fee: Math.floor(Math.round(acc) / 1000) * 1000, raw: acc, band, base: Math.round(cum) };
+}
+
+// 여비: 교통비(왕복) + (현지교통비+일비+식비) × 출장일수 + 숙박비 × (일수-1)
+function travelFee(r, days) {
+  const [, , tr, loc, day, meal, lodge] = r;
+  const nights = lodge > 0 ? Math.max(0, days - 1) : 0;
+  return { total: tr + (loc + day + meal) * days + lodge * nights, nights };
+}
+const sidoShort = s => s.replace(/특별자치시|특별자치도|특별시|광역시/, "").replace(/^(충청|전라|경상)(북|남)도$/, (m, a, b) => a[0] + b).replace(/도$/, "");
+
+const $ = id => document.getElementById(id);
+const parseNum = v => Number(String(v || "").replace(/[^\d.]/g, "")) || 0;
+const STORE_KEY = "appraisal-estimate-draft-v1";
+
+const SAMPLE = {
+  firm: "HI", docno: "", kind: "부동산", client: "손태원", appraiser: "", address: "경기도 안양시 안양동 434-2",
+  items: [
+    { cat: "토지", addr: "경기도 안양시 안양동 434-2", type: "대", area: "337.5", value: "3,400,000,000" },
+    { cat: "건물", addr: "경기도 안양시 안양동 434-2", type: "다가구주택", area: "655.59", value: "450,000,000" },
+  ],
+  rate: 1.0, sido: "경기도", sgg: "안양시 만안구", days: 1, travelNote: "", travelManual: false, travelAmt: "",
+  expense: "30,000", expenseNote: "공부발급비, 사진촬영비", period: "5~7일", feeRound: "round", opinion: null,
+};
+const BLANK = {
+  firm: "HI", docno: "", kind: "부동산", client: "", appraiser: "", address: "",
+  items: [{ cat: "토지", addr: "", type: "", area: "", value: "" }],
+  rate: 1.0, sido: "서울특별시", sgg: "강남구", days: 1, travelNote: "", travelManual: false, travelAmt: "",
+  expense: "30,000", expenseNote: "공부발급비, 사진촬영비", period: "5~7일", feeRound: "round", opinion: null,
+};
+let state;
+
+function defaultOpinion(period) {
+  return `1. 본 탁상감정 결과는 실거래가격 및 평가전례에 기초한 개략적 금액으로서, 현장조사 시 감정평가 금액이 변동될 수 있습니다.\n2. 정식 감정평가 의뢰 시, 예상 소요일은 약 ${period || "5~7일"}(영업일 기준)입니다.`;
+}
+function todayNo(prefix) {
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `${prefix}${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-01`;
+}
+
+// ---- 입력 패널 ----
+function fillSelects() {
+  $("firm").innerHTML = FIRMS.map(f => `<option value="${f.id}">${f.name}</option>`).join("");
+  const sidos = [...new Set(REGIONS.map(r => r[0]))];
+  $("sido").innerHTML = sidos.map(s => `<option>${s}</option>`).join("");
+}
+function fillSgg() {
+  const list = REGIONS.filter(r => r[0] === state.sido);
+  $("sgg").innerHTML = list.map(r => `<option value="${r[1]}">${r[1] || "(전체)"}</option>`).join("");
+  if (!list.some(r => r[1] === state.sgg)) state.sgg = list[0][1];
+  $("sgg").value = state.sgg;
+}
+function renderItems() {
+  $("items").innerHTML = state.items.map((it, i) => `
+    <div class="item" data-i="${i}">
+      <div class="item-head"><span>물건 ${i + 1}</span>${state.items.length > 1 ? `<button type="button" class="btn link" data-del="${i}">삭제</button>` : ""}</div>
+      <div class="row three">
+        <label>구분<input id="it_cat_${i}" data-k="cat" value="${esc(it.cat)}" list="cats"></label>
+        <label>종류<input id="it_type_${i}" data-k="type" value="${esc(it.type)}" placeholder="대, 아파트…"></label>
+        <label>면적(㎡)<input id="it_area_${i}" data-k="area" value="${esc(it.area)}" placeholder="1세대, 1식"></label>
+      </div>
+      <label>소재지<input id="it_addr_${i}" data-k="addr" value="${esc(it.addr)}"></label>
+      <label>예상감정평가액(원)<input id="it_value_${i}" data-k="value" class="num" inputmode="numeric" value="${esc(it.value)}"></label>
+    </div>`).join("") + `<datalist id="cats"><option value="토지"><option value="건물"><option value="집합건물"><option value="기계기구"></datalist>`;
+}
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+function syncInputs() {
+  for (const k of ["firm", "docno", "kind", "client", "appraiser", "address", "sido", "days", "travelNote", "travelAmt", "expense", "expenseNote", "period", "feeRound"]) $(k).value = state[k] ?? "";
+  $("travelManual").checked = !!state.travelManual;
+  $("travelManualWrap").hidden = !state.travelManual;
+  $("opinion").value = state.opinion ?? defaultOpinion(state.period);
+  fillSgg();
+  renderItems();
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.rate) === state.rate)));
+}
+
+// ---- 계산 + 미리보기 ----
+function compute() {
+  const firm = FIRMS.find(f => f.id === state.firm) || FIRMS[0];
+  const base = state.items.reduce((s, it) => s + parseNum(it.value), 0);
+  const feeR = appraisalFee(base, state.rate);
+  const region = REGIONS.find(r => r[0] === state.sido && r[1] === state.sgg) || REGIONS[0];
+  const days = Math.max(1, Math.floor(parseNum(state.days)) || 1);
+  const tAuto = travelFee(region, days);
+  const travel = state.travelManual ? parseNum(state.travelAmt) : tAuto.total;
+  const expense = parseNum(state.expense);
+  const supply = Math.floor((feeR.fee + travel + expense) / 1000) * 1000;
+  const vat = Math.floor(supply * 0.1);
+  const total = supply + vat;
+  return { firm, base, feeR, region, days, tAuto, travel, expense, supply, vat, total };
+}
+
+function render() {
+  const c = compute();
+  const rateLabel = { 0.8: "하한요율", 1: "기준요율", 1.2: "상한요율" }[state.rate];
+  for (const [id, m] of [["r08", 0.8], ["r10", 1.0], ["r12", 1.2]]) $(id).textContent = won(appraisalFee(c.base, m).fee);
+  $("baseHint").textContent = won(c.base) + "원" + (c.base ? ` (${eok(c.base)} 원)` : "");
+  const b = c.feeR.band;
+  $("feeHint").innerHTML = b
+    ? `${eok(b[0])}원 초과 ~ ${b[1] === Infinity ? "" : eok(b[1]) + "원 이하"} · 1만분의 ${b[2]}<br><b>${won(c.feeR.base)}</b> + (${eok(b[0])}원 초과액 ${won(c.base - b[0])} × ${b[2]}/10,000${state.rate !== 1 ? " × " + state.rate : ""}) = ${won(c.feeR.raw)} → 천원 미만 절사 <b>${won(c.feeR.fee)}원</b>`
+    : `5천만원 이하 구간 · 최저수수료 <b>${won(MIN_FEE)}원</b>`;
+  const [, , tr, loc, day, meal, lodge] = c.region;
+  $("travelHint").innerHTML = loc + day + meal === 0
+    ? `교통비(왕복) <b>${won(tr)}</b>원 · 서울 지역은 교통비만 청구`
+    : `교통비 ${won(tr)} + (현지교통 ${won(loc)} + 일비 ${won(day)} + 식비 ${won(meal)}) × ${c.days}일` +
+      (lodge ? ` + 숙박 ${won(lodge)} × ${c.tAuto.nights}박` : "") + ` = <b>${won(c.tAuto.total)}원</b>` +
+      (lodge && c.days < 2 ? `<br>숙박 지역입니다. 기준표는 1박2일 기준이므로 일수를 2일로 두는 것이 일반적입니다.` : "");
+
+  const firm = c.firm;
+  $("p_docno").textContent = state.docno || todayNo(firm.id);
+  $("docno").placeholder = todayNo(firm.id);
+  $("p_title").textContent = `(${state.kind || "부동산"}) 감정평가 견적서`;
+  $("p_client").textContent = state.client || "-";
+  const appr = state.appraiser || firm.appraiser;
+  $("appraiser").placeholder = firm.appraiser;
+  $("p_appraiser").textContent = firm.short ? `${firm.short} ${appr}` : appr;
+  const firstAddr = state.items.find(it => it.addr)?.addr || "";
+  const extra = state.items.filter(it => it.addr).length > 1 && !state.address ? " 외" : "";
+  $("p_address").textContent = state.address || (firstAddr + extra) || "-";
+  $("p_valueShort").textContent = c.base ? `${eok(c.base)}원` : "-";
+  const man = c.total / 1e4;
+  $("p_feeShort").textContent = `${(state.feeRound === "floor" ? Math.floor(man) : Math.round(man)).toLocaleString("ko-KR")}만원`;
+
+  $("p_items").innerHTML = state.items.map(it => `<tr><td>${esc(it.cat)}</td><td class="l">${esc(it.addr)}</td><td>${esc(it.type)}</td><td>${esc(it.area)}</td><td class="r">${parseNum(it.value) ? won(parseNum(it.value)) : ""}</td></tr>`).join("") +
+    (state.items.length > 1 ? `<tr><th colspan="4">합계</th><td class="r"><b>${won(c.base)}</b></td></tr>` : "");
+  $("p_opinion").textContent = $("opinion").value;
+
+  $("f_base").textContent = won(c.base);
+  $("f_fee").textContent = won(c.feeR.fee);
+  $("f_feeNote").textContent = `= 기초가액 × 적용요율 (${rateLabel} 적용)`;
+  $("f_travel").textContent = won(c.travel);
+  const autoNote = `(${sidoShort(c.region[0])} ${c.region[1].replace(/ \(.*\)$/, "")}${c.tAuto.nights ? `, ${c.tAuto.nights}박${c.days}일` : ""}) 출장여비`.replace("( ", "(").replace(" )", ")");
+  $("travelNote").placeholder = autoNote;
+  $("f_travelNote").textContent = state.travelNote || autoNote;
+  $("f_exp").textContent = won(c.expense);
+  $("f_expNote").textContent = state.expenseNote;
+  $("f_supply").textContent = won(c.supply);
+  $("f_vat").textContent = won(c.vat);
+  $("f_total").textContent = won(c.total);
+
+  $("p_foot").innerHTML = `<span class="firm">${esc(firm.name)}</span>\n${esc(firm.foot)}`;
+  $("p_bank").textContent = firm.bank;
+  save();
+}
+
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+function load() { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { return null; } }
+
+function asText() {
+  const c = compute();
+  const p = id => $(id).textContent;
+  const lines = [
+    p("p_title"), p("p_docno"), "",
+    `의 뢰 처: ${p("p_client")}`, `담 당 자: ${p("p_appraiser")}`, `소 재 지: ${p("p_address")}`,
+    `예상감정평가액: ${p("p_valueShort")}`, `예상수수료: ${p("p_feeShort")}`, "",
+    "[탁상감정결과]",
+    ...state.items.map((it, i) => `${i + 1}. ${it.cat} | ${it.addr} | ${it.type} | ${it.area} | ${won(parseNum(it.value))}원`),
+    "", "[탁상감정 의견]", $("opinion").value, "",
+    "[예상수수료]",
+    `기초가액      ${won(c.base)}`,
+    `= 평가수수료  ${won(c.feeR.fee)}   ${p("f_feeNote")}`,
+    `+ 여비        ${won(c.travel)}   ${p("f_travelNote")}`,
+    `+ 실비        ${won(c.expense)}   ${state.expenseNote}`,
+    `= 공급가액    ${won(c.supply)}`,
+    `+ 부가가치세  ${won(c.vat)}`,
+    `예상수수료    ${won(c.total)}`,
+  ];
+  return lines.join("\n");
+}
+
+function toast(msg) { $("toast").textContent = msg; clearTimeout(toast.t); toast.t = setTimeout(() => $("toast").textContent = "", 2500); }
+
+// ---- 이벤트 ----
+const form = $("form");
+form.addEventListener("submit", e => e.preventDefault());
+form.addEventListener("input", e => {
+  const t = e.target, item = t.closest(".item");
+  if (item && t.dataset.k) {
+    state.items[item.dataset.i][t.dataset.k] = t.value;
+  } else if (t.id === "travelManual") {
+    state.travelManual = t.checked; $("travelManualWrap").hidden = !t.checked;
+  } else if (t.id === "opinion") {
+    state.opinion = t.value;
+  } else if (t.id === "sido") {
+    state.sido = t.value; fillSgg();
+    const r = REGIONS.find(x => x[0] === state.sido && x[1] === state.sgg);
+    state.days = r && r[6] > 0 ? 2 : 1; $("days").value = state.days;
+  } else if (t.id === "sgg") {
+    state.sgg = t.value;
+  } else if (t.id === "period") {
+    const wasDefault = state.opinion == null || state.opinion === defaultOpinion(state.period);
+    state.period = t.value;
+    if (wasDefault) { state.opinion = null; $("opinion").value = defaultOpinion(state.period); }
+  } else if (t.id in state) {
+    state[t.id] = t.value;
+  }
+  render();
+});
+form.addEventListener("focusout", e => {
+  const t = e.target;
+  if (t.classList.contains("num") && t.id !== "days" && t.value) {
+    t.value = won(parseNum(t.value));
+    const item = t.closest(".item");
+    if (item) state.items[item.dataset.i][t.dataset.k] = t.value; else state[t.id] = t.value;
+    save();
+  }
+});
+document.querySelector(".seg").addEventListener("click", e => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  state.rate = Number(btn.dataset.rate);
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  render();
+});
+$("items").addEventListener("click", e => {
+  const d = e.target.closest("[data-del]"); if (!d) return;
+  state.items.splice(Number(d.dataset.del), 1); renderItems(); render();
+});
+$("addItem").addEventListener("click", () => {
+  const last = state.items[state.items.length - 1];
+  state.items.push({ cat: "건물", addr: last?.addr || "", type: "", area: "", value: "" });
+  renderItems(); render();
+});
+$("sample").addEventListener("click", () => { state = structuredClone(SAMPLE); syncInputs(); render(); toast("예시(안양동 434-2)를 불러왔습니다."); });
+$("reset").addEventListener("click", () => { state = structuredClone(BLANK); syncInputs(); render(); toast("새 견적서를 시작합니다."); });
+$("copyText").addEventListener("click", () => {
+  const text = asText();
+  const fb = $("copyFallback");
+  navigator.clipboard?.writeText(text).then(() => { fb.hidden = true; toast("견적 내용을 복사했습니다."); }, () => {
+    fb.hidden = false; fb.value = text; fb.select(); toast("자동 복사가 막혀 있습니다. 아래 텍스트를 선택해 복사하세요.");
+  }) ?? (fb.hidden = false, fb.value = text, fb.select());
+});
+
+fillSelects();
+state = Object.assign(structuredClone(SAMPLE), load() || {});
+syncInputs();
+render();
+</script>
