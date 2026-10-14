@@ -329,7 +329,7 @@ function defaultOpinion(period) {
 }
 function todayNo(prefix) {
   const d = new Date(), p = n => String(n).padStart(2, "0");
-  return `${prefix}${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-01`;
+  return `${prefix}${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}-1501`;
 }
 
 // ---- 입력 패널 ----
