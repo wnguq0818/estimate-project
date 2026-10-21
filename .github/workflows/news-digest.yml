@@ -1,0 +1,54 @@
+name: 부동산 세금 뉴스 브리핑
+
+on:
+  schedule:
+    - cron: "45 23 * * *" # 매일 08:45 KST (UTC 23:45). GitHub 사정으로 수 분~수십 분 늦을 수 있음
+  workflow_dispatch: # Actions 탭에서 수동 실행
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r news_digest/requirements.txt
+
+      - name: 뉴스 수집·요약
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OUTPUT_PATH: digest.md
+        run: python news_digest/digest.py
+
+      - name: 이슈로 게시
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '아래 메시지를 복사해서 오픈채팅방에 붙여넣으세요.'
+            echo
+            echo '```text'
+            cat digest.md
+            echo '```'
+          } > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+
+          gh label create news-digest --color 1D76DB --description "일일 뉴스 브리핑" --force
+          # 지난 브리핑 이슈는 닫아서 목록을 깔끔하게 유지
+          for n in $(gh issue list --label news-digest --state open --json number --jq '.[].number'); do
+            gh issue close "$n"
+          done
+          gh issue create \
+            --title "📰 $(TZ=Asia/Seoul date +%m/%d) 상속·증여·부동산 세금 뉴스" \
+            --body-file body.md \
+            --label news-digest \
+            --assignee "${{ github.repository_owner }}"
