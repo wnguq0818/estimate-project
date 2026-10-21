@@ -1,10 +1,10 @@
 """상속·증여·세금·부동산 정책 뉴스 브리핑 생성기.
 
-네이버 뉴스 검색 API로 최근 기사를 모으고, 중요한 3~5건을 골라
-카카오톡 오픈채팅방에 붙여넣을 메시지(digest.md)를 만든다.
+Google 뉴스 RSS(와 키가 있으면 네이버 뉴스 검색 API)로 최근 기사를 모으고,
+중요한 3~5건을 골라 카카오톡 오픈채팅방에 붙여넣을 메시지(digest.md)를 만든다.
 
 환경 변수
-  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (필수) NAVER API HUB 애플리케이션의 Client ID / Secret
+  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (선택) NAVER API HUB 애플리케이션의 Client ID / Secret
   ANTHROPIC_API_KEY                     (선택) 있으면 Claude가 기사 선별·요약
   LOOKBACK_HOURS                        (선택) 수집 기간, 기본 24시간
   OUTPUT_PATH                           (선택) 결과 파일 경로, 기본 digest.md
@@ -19,6 +19,8 @@ import re
 import sys
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -27,7 +29,7 @@ from email.utils import parsedate_to_datetime
 KST = timezone(timedelta(hours=9))
 WEEKDAYS = "월화수목금토일"
 
-# 네이버 뉴스 검색어. 검색어당 최신순 100건까지 가져온다.
+# 뉴스 검색어. 검색 출처마다 검색어별로 최근 기사를 가져온다.
 QUERIES = [
     "상속세",
     "증여세",
@@ -64,11 +66,37 @@ class Article:
     url: str
     published: datetime
     query: str
+    source: str = ""  # 언론사 이름 (Google 뉴스만 제공)
     related: int = 1  # 같은 사건을 다룬 기사 수 (중복 제거 후 누적)
 
 
 def clean(text: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
+
+
+def fetch_google(query: str) -> list[dict]:
+    """Google 뉴스 RSS 검색. 키가 필요 없지만 공식 API는 아니다."""
+    params = urllib.parse.urlencode({"q": f"{query} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
+    req = urllib.request.Request(
+        f"https://news.google.com/rss/search?{params}",
+        headers={"User-Agent": "Mozilla/5.0 (news-digest)"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        root = ET.fromstring(resp.read())
+    items = []
+    for item in root.iter("item"):
+        source = (item.findtext("source") or "").strip()
+        title = clean(item.findtext("title") or "")
+        if source and title.endswith(f" - {source}"):  # 제목 끝의 " - 언론사" 제거
+            title = title[: -len(source) - 3]
+        items.append({
+            "title": title,
+            "description": "",  # RSS 설명란은 제목 반복이라 쓰지 않는다
+            "url": item.findtext("link") or "",
+            "pubDate": item.findtext("pubDate") or "",
+            "source": source,
+        })
+    return items
 
 
 def fetch_naver(query: str, client_id: str, client_secret: str) -> list[dict]:
@@ -80,28 +108,43 @@ def fetch_naver(query: str, client_id: str, client_secret: str) -> list[dict]:
         headers={"X-NCP-APIGW-API-KEY-ID": client_id, "X-NCP-APIGW-API-KEY": client_secret},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.load(resp).get("items", [])
+        items = json.load(resp).get("items", [])
+    return [
+        {
+            "title": clean(item["title"]),
+            "description": clean(item["description"]),
+            "url": item.get("originallink") or item["link"],
+            "pubDate": item["pubDate"],
+            "source": "",
+        }
+        for item in items
+    ]
 
 
-def collect(client_id: str, client_secret: str, since: datetime) -> list[Article]:
+def collect(fetchers: dict[str, Callable[[str], list[dict]]], since: datetime) -> list[Article]:
     articles: dict[str, Article] = {}
-    for query in QUERIES:
-        try:
-            items = fetch_naver(query, client_id, client_secret)
-        except Exception as e:  # 검색어 하나가 실패해도 나머지는 계속
-            print(f"[warn] '{query}' 검색 실패: {e}", file=sys.stderr)
-            continue
-        for item in items:
-            published = parsedate_to_datetime(item["pubDate"])
-            if published < since:
+    succeeded = 0
+    for name, fetch in fetchers.items():
+        for query in QUERIES:
+            try:
+                items = fetch(query)
+                succeeded += 1
+            except Exception as e:  # 검색어 하나가 실패해도 나머지는 계속
+                print(f"[warn] {name} '{query}' 검색 실패: {e}", file=sys.stderr)
                 continue
-            url = item.get("originallink") or item["link"]
-            if url in articles:
-                continue
-            title = clean(item["title"])
-            if any(w in title for w in EXCLUDE_WORDS):
-                continue
-            articles[url] = Article(title, clean(item["description"]), url, published, query)
+            for item in items:
+                try:
+                    published = parsedate_to_datetime(item["pubDate"])
+                except (TypeError, ValueError):
+                    continue
+                url, title = item["url"], item["title"]
+                if published < since or not url or url in articles:
+                    continue
+                if any(w in title for w in EXCLUDE_WORDS):
+                    continue
+                articles[url] = Article(title, item["description"], url, published, query, item["source"])
+    if not succeeded:  # 빈 브리핑을 올리는 대신 워크플로를 실패시켜 알림이 가게 한다
+        sys.exit("모든 뉴스 검색이 실패했습니다.")
     return list(articles.values())
 
 
@@ -147,7 +190,9 @@ def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
 
     ranked = sorted(candidates, key=score, reverse=True)[:60]
     listing = "\n".join(
-        f"{i}. [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}\n   {a.description}"
+        f"{i}. [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
+        + (f" - {a.source}" if a.source else "")
+        + (f"\n   {a.description}" if a.description else "")
         for i, a in enumerate(ranked)
     )
     prompt = f"""아래는 최근 24시간 동안 나온 한국 뉴스 후보입니다.
@@ -159,7 +204,8 @@ def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
 - 관련 기사 수가 많은(여러 언론이 다룬) 소식을 우선
 
 각 기사마다 짧은 제목(30자 이내)과 핵심 내용 한 문장 요약(60자 이내)을 쓰세요.
-요약은 후보에 적힌 내용만 근거로 하고, 없는 내용을 추측하지 마세요.
+요약은 후보에 적힌 제목·설명만 근거로 하고, 없는 내용을 추측하지 마세요.
+설명이 없는 기사는 제목에서 알 수 있는 사실만 풀어 쓰세요.
 관련 기사가 {MIN_ITEMS}개보다 적으면 있는 만큼만 고르세요.
 
 JSON 배열만 출력하세요. 형식: [{{"index": 0, "title": "...", "summary": "..."}}]
@@ -196,20 +242,24 @@ def render(picks: list[tuple[Article, str, str]], today: datetime) -> str:
     if not picks:
         lines += ["오늘은 눈에 띄는 관련 뉴스가 없었어요.", ""]
     for i, (art, title, summary) in enumerate(picks):
-        lines += [f"{keycaps[i]} {title}", f"→ {summary}", f"🔗 {art.url}", ""]
+        lines.append(f"{keycaps[i]} {title}")
+        if summary:
+            lines.append(f"→ {summary}")
+        lines += [f"🔗 {art.source + ' ' if art.source else ''}{art.url}", ""]
     lines.append("좋은 하루 보내세요 😊")
     return "\n".join(lines)
 
 
 def main() -> None:
+    fetchers: dict[str, Callable[[str], list[dict]]] = {"Google": fetch_google}
     client_id = os.environ.get("NAVER_CLIENT_ID", "").strip()
     client_secret = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
-    if not client_id or not client_secret:
-        sys.exit("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 환경 변수가 필요합니다.")
+    if client_id and client_secret:
+        fetchers["Naver"] = lambda q: fetch_naver(q, client_id, client_secret)
 
     now = datetime.now(KST)
     since = now - timedelta(hours=int(os.environ.get("LOOKBACK_HOURS", "24")))
-    candidates = dedupe(collect(client_id, client_secret, since))
+    candidates = dedupe(collect(fetchers, since))
     print(f"후보 기사 {len(candidates)}건", file=sys.stderr)
 
     picks: list[tuple[Article, str, str]] = []
