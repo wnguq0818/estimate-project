@@ -186,13 +186,26 @@ def normalize(title: str) -> str:
     return re.sub(r"[^0-9A-Za-z가-힣]", "", title)
 
 
+def words(title: str) -> set[str]:
+    """제목의 두 글자 이상 단어. 조사 차이를 줄이려고 앞 3글자만 쓴다."""
+    title = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", title)
+    return {w[:3] for w in re.findall(r"[0-9A-Za-z가-힣]{2,}", title)}
+
+
+def same_story(a: str, b: str) -> bool:
+    if SequenceMatcher(None, normalize(a), normalize(b)).ratio() > 0.6:
+        return True
+    # 표현이 달라도 핵심 단어(인물·기관·사건)가 많이 겹치면 같은 사건으로 본다
+    wa, wb = words(a), words(b)
+    return len(wa & wb) >= 3 and len(wa & wb) / min(len(wa), len(wb)) >= 0.4
+
+
 def dedupe(articles: list[Article]) -> list[Article]:
-    """제목이 비슷한 기사는 같은 사건으로 보고 가장 이른 기사 하나만 남긴다."""
+    """같은 사건을 다룬 기사는 가장 이른 기사 하나만 남긴다."""
     kept: list[Article] = []
     for art in sorted(articles, key=lambda a: a.published):
-        norm = normalize(art.title)
         for k in kept:
-            if SequenceMatcher(None, norm, normalize(k.title)).ratio() > 0.6:
+            if same_story(art.title, k.title):
                 k.related += 1
                 break
         else:
