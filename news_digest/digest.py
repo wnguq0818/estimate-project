@@ -152,6 +152,7 @@ Fetcher = Callable[[str, int], list[dict]]  # (검색어, 수집 기간 시간) 
 def collect(fetchers: dict[str, Fetcher], now: datetime) -> list[Article]:
     articles: dict[str, Article] = {}
     succeeded = 0
+    counts = dict.fromkeys(fetchers, 0)  # 출처별 수집 건수 (연결 확인용 로그)
     for category in CATEGORIES:
         since = now - timedelta(hours=category.hours)
         for name, fetch in fetchers.items():
@@ -173,6 +174,8 @@ def collect(fetchers: dict[str, Fetcher], now: datetime) -> list[Article]:
                     if any(w in title for w in EXCLUDE_WORDS):
                         continue
                     articles[url] = Article(title, item["description"], url, published, category, item["source"])
+                    counts[name] += 1
+    print("출처별 수집: " + ", ".join(f"{n} {c}건" for n, c in counts.items()), file=sys.stderr)
     if not succeeded:  # 빈 브리핑을 올리는 대신 워크플로를 실패시켜 알림이 가게 한다
         sys.exit("모든 뉴스 검색이 실패했습니다.")
     return list(articles.values())
