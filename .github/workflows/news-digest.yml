@@ -48,7 +48,7 @@ jobs:
             gh issue close "$n"
           done
           gh issue create \
-            --title "📰 $(TZ=Asia/Seoul date +%m/%d) 상속·증여·부동산 세금 뉴스" \
+            --title "$(TZ=Asia/Seoul date +%m/%d) 상속·증여·부동산 세금 뉴스" \
             --body-file body.md \
             --label news-digest \
             --assignee "${{ github.repository_owner }}"

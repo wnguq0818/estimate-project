@@ -237,16 +237,16 @@ JSON 배열만 출력하세요. 형식: [{{"index": 0, "title": "...", "summary"
 
 
 def render(picks: list[tuple[Article, str, str]], today: datetime) -> str:
-    keycaps = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-    lines = [f"📰 {today:%m/%d}({WEEKDAYS[today.weekday()]}) 상속·증여·부동산 세금 뉴스", ""]
+    # 카카오톡에 그대로 붙여넣으므로 이모지는 쓰지 않는다
+    lines = [f"[{today:%m/%d}({WEEKDAYS[today.weekday()]}) 상속·증여·부동산 세금 뉴스]", ""]
     if not picks:
         lines += ["오늘은 눈에 띄는 관련 뉴스가 없었어요.", ""]
-    for i, (art, title, summary) in enumerate(picks):
-        lines.append(f"{keycaps[i]} {title}")
+    for i, (art, title, summary) in enumerate(picks, start=1):
+        lines.append(f"{i}. {title}")
         if summary:
-            lines.append(f"→ {summary}")
-        lines += [f"🔗 {art.source + ' ' if art.source else ''}{art.url}", ""]
-    lines.append("좋은 하루 보내세요 😊")
+            lines.append(f"- {summary}")
+        lines += [f"{art.source + ' ' if art.source else ''}{art.url}", ""]
+    lines.append("좋은 하루 보내세요.")
     return "\n".join(lines)
 
 
