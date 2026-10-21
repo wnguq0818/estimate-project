@@ -4,7 +4,7 @@
 카카오톡 오픈채팅방에 붙여넣을 메시지(digest.md)를 만든다.
 
 환경 변수
-  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (필수) 네이버 개발자센터 검색 API 키
+  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (필수) NAVER API HUB 애플리케이션의 Client ID / Secret
   ANTHROPIC_API_KEY                     (선택) 있으면 Claude가 기사 선별·요약
   LOOKBACK_HOURS                        (선택) 수집 기간, 기본 24시간
   OUTPUT_PATH                           (선택) 결과 파일 경로, 기본 digest.md
@@ -72,10 +72,12 @@ def clean(text: str) -> str:
 
 
 def fetch_naver(query: str, client_id: str, client_secret: str) -> list[dict]:
+    # 네이버 개발자센터 검색 API는 2026-07-31 신규 발급이 끝나 NAVER API HUB(네이버 클라우드)로 호출한다.
+    # 파라미터와 응답 형식은 기존 개발자센터 API와 같다.
     params = urllib.parse.urlencode({"query": query, "display": 100, "sort": "date"})
     req = urllib.request.Request(
-        f"https://openapi.naver.com/v1/search/news.json?{params}",
-        headers={"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": client_secret},
+        f"https://naverapihub.apigw.ntruss.com/search/v1/news?{params}",
+        headers={"X-NCP-APIGW-API-KEY-ID": client_id, "X-NCP-APIGW-API-KEY": client_secret},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         return json.load(resp).get("items", [])
@@ -200,8 +202,8 @@ def render(picks: list[tuple[Article, str, str]], today: datetime) -> str:
 
 
 def main() -> None:
-    client_id = os.environ.get("NAVER_CLIENT_ID")
-    client_secret = os.environ.get("NAVER_CLIENT_SECRET")
+    client_id = os.environ.get("NAVER_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
         sys.exit("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 환경 변수가 필요합니다.")
 

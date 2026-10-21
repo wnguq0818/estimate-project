@@ -5,10 +5,14 @@
 
 ## 설정 (처음 한 번)
 
-1. **네이버 API 키 발급**
-   - https://developers.naver.com/apps/#/register 에서 애플리케이션 등록
-   - 사용 API: **검색**, 환경: **WEB 설정**(URL은 아무 주소, 예: `https://github.com`)
-   - 발급된 Client ID, Client Secret 복사 (무료, 하루 25,000회)
+1. **네이버 API 키 발급 (NAVER API HUB)**
+   - 네이버 개발자센터(developers.naver.com)의 검색 API는 2026-07-31부터 신규 발급이 끝나서,
+     새 키는 네이버 클라우드 플랫폼의 **NAVER API HUB**에서 받아야 합니다.
+     (개발자센터 "사용 API" 목록에 "검색"이 없는 이유입니다.)
+   - https://console.ncloud.com 로그인(네이버 아이디 가능) → Services → Application Service → **NAVER API HUB** → 이용 신청
+   - Application 등록 → API 목록에서 **뉴스** 체크 → 저장
+   - 발급된 Client ID, Client Secret 복사 (요금·무료 한도는 콘솔 안내를 확인하세요)
+   - 개발자센터에서 받은 예전 키는 이 방식에 쓸 수 없습니다.
 2. **(선택) Anthropic API 키** — https://console.anthropic.com 에서 발급.
    있으면 Claude가 기사를 골라 한 줄 요약을 써 주고, 없으면 키워드 점수로 고르고 기사 요약문을 그대로 씁니다.
    하루 1회 호출이라 비용은 하루 몇십 원 수준입니다.
