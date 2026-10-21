@@ -8,6 +8,7 @@
   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (선택) NAVER API HUB 애플리케이션의 Client ID / Secret
   ANTHROPIC_API_KEY                     (선택) 있으면 Claude가 기사 선별·요약
   OUTPUT_PATH                           (선택) 결과 파일 경로, 기본 digest.md
+  NOTES_PATH                            (선택) 원문 대조 검증 기록 경로, 기본 notes.md
 """
 
 from __future__ import annotations
@@ -34,17 +35,15 @@ WEEKDAYS = "월화수목금토일"
 class Category:
     name: str
     queries: list[str]
-    quota: int  # 브리핑에 넣을 기사 수
     hours: int  # 수집 기간 (칼럼은 매일 나오지 않아 더 길게)
     weights: dict[str, int]  # 제목에 들어 있으면 점수를 주는 단어 (규칙 기반 선별용)
 
 
-# 출력 순서이기도 하다. quota 합계가 MAX_ITEMS.
+# 주제가 한쪽으로 쏠리지 않게 섞는 기준. 출력 순서이기도 하다.
 CATEGORIES = [
     Category(
         "부동산 정책",
         ["부동산 대책", "부동산 정책", "주택 공급 대책", "주택담보대출 규제", "국토교통부 주택", "토지거래허가구역"],
-        quota=2,
         hours=24,
         weights={
             "대책": 3, "정부": 2, "국토부": 2, "국토교통부": 2, "금융위": 2, "공급": 2, "규제": 2,
@@ -55,7 +54,6 @@ CATEGORIES = [
     Category(
         "세금 정책",
         ["상속세", "증여세", "종부세", "양도세", "재산세 주택", "세법개정안"],
-        quota=2,
         hours=24,
         weights={
             "상속": 3, "증여": 3, "종부세": 3, "종합부동산세": 3, "양도세": 3, "양도소득세": 3,
@@ -66,7 +64,6 @@ CATEGORIES = [
     Category(
         "세무 칼럼",
         ["세무사 칼럼 부동산", "세무사 칼럼 상속", "절세 칼럼", "세무 상담 증여"],
-        quota=1,
         hours=72,
         weights={
             "칼럼": 3, "세무사": 3, "절세": 3, "Q&A": 2, "상담": 2, "알아두면": 1, "주의": 1,
@@ -78,7 +75,8 @@ CATEGORIES = [
 # 광고·홍보성 기사 제외용
 EXCLUDE_WORDS = ["분양", "견본주택", "모델하우스", "청약 접수", "세미나", "설명회", "[광고]", "[AD]", "포토"]
 
-MAX_ITEMS = sum(c.quota for c in CATEGORIES)
+MAX_ITEMS = 5
+MAX_PER_CATEGORY = 3  # 한 주제가 이보다 많이 뽑히지 않게 한다 (규칙 기반 선별용)
 MIN_ITEMS = 3
 CLAUDE_MODEL = "claude-opus-5-5"
 
@@ -231,56 +229,25 @@ def by_category_order(picks: list[tuple[Article, str, str]]) -> list[tuple[Artic
 
 
 def pick_by_rules(candidates: list[Article]) -> list[tuple[Article, str, str]]:
-    """분류마다 정해진 수만큼 고르고, 모자란 자리는 남은 기사 중 점수 높은 순으로 채운다."""
+    """주제마다 가장 좋은 기사를 하나씩 먼저 넣고, 나머지는 점수 순으로 채운다 (한 주제는 MAX_PER_CATEGORY까지)."""
     ranked = [a for a in sorted(candidates, key=lambda a: (score(a), a.published), reverse=True) if score(a) > 1]
-    chosen: list[Article] = []
-    for category in CATEGORIES:
-        chosen += [a for a in ranked if a.category is category][: category.quota]
-    chosen += [a for a in ranked if a not in chosen][: MAX_ITEMS - len(chosen)]
+    chosen = [best for c in CATEGORIES if (best := next((a for a in ranked if a.category is c), None))]
+    for a in ranked:
+        if len(chosen) >= MAX_ITEMS:
+            break
+        if a not in chosen and sum(x.category is a.category for x in chosen) < MAX_PER_CATEGORY:
+            chosen.append(a)
     return by_category_order([(a, display_title(a.title), short(a.description)) for a in chosen])
 
 
-def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
+def ask_claude_json(prompt: str, effort: str) -> list[dict]:
+    """Claude에게 묻고 응답에서 JSON 배열을 꺼낸다."""
     import anthropic
 
-    ranked: list[Article] = []
-    for category in CATEGORIES:  # 분류마다 상위 25건씩 후보로 보낸다
-        ranked += sorted((a for a in candidates if a.category is category), key=score, reverse=True)[:25]
-    listing = "\n".join(
-        f"{i}. <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
-        + (f" - {a.source}" if a.source else "")
-        + (f"\n   {a.description}" if a.description else "")
-        for i, a in enumerate(ranked)
-    )
-    quotas = ", ".join(f"{c.name} {c.quota}개" for c in CATEGORIES)
-    prompt = f"""아래는 최근 나온 한국 뉴스 후보입니다. <분류>는 검색 기준으로 붙인 것이라 틀릴 수 있습니다.
-부동산·세금에 관심 있는 일반인이 모인 오픈채팅방에 공유할 기사를 {MIN_ITEMS}~{MAX_ITEMS}개 골라 주세요.
-
-구성
-- 주제가 한쪽으로 쏠리지 않게 {quotas}를 목표로 고르세요.
-  - 부동산 정책: 정부·국회의 주택 공급, 대출 규제, 규제지역, 청약 제도 등 (세금 이야기가 아닌 것)
-  - 세금 정책: 상속세·증여세·종부세·양도세·재산세 등 세금 제도와 세법 개정
-  - 세무 칼럼: 세무사·전문가가 쓴 칼럼이나 절세 정보
-- 어떤 분류에 알맞은 기사가 없으면 다른 분류의 좋은 기사로 채우세요.
-- 같은 사건은 하나만, 단순 시황·광고·분양 홍보·세무법인 홍보성 기사는 제외하세요.
-- 관련 기사 수가 많은(여러 언론이 다룬) 소식을 우선하세요.
-
-각 기사마다 짧은 제목(30자 이내)과 핵심 내용 한 문장 요약(60자 이내)을 쓰세요.
-요약은 후보에 적힌 제목·설명만 근거로 하고, 없는 내용을 추측하지 마세요.
-설명이 없는 기사는 제목에서 알 수 있는 사실만 풀어 쓰세요.
-이모지는 쓰지 마세요.
-
-JSON 배열만 출력하세요. 형식: [{{"index": 0, "category": "부동산 정책", "title": "...", "summary": "..."}}]
-category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용에 맞게 다시 판단해 쓰세요.
-
-후보
-{listing}"""
-
-    client = anthropic.Anthropic()
-    response = client.beta.messages.create(
+    response = anthropic.Anthropic().beta.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=4000,
-        output_config={"effort": "low"},
+        max_tokens=8000,
+        output_config={"effort": effort},
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
         messages=[{"role": "user", "content": prompt}],
@@ -291,9 +258,45 @@ category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용
     match = re.search(r"\[.*\]", text, re.S)
     if not match:
         raise ValueError(f"JSON 응답을 찾지 못했습니다: {text[:200]}")
+    return json.loads(match.group(0))
+
+
+def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
+    ranked: list[Article] = []
+    for category in CATEGORIES:  # 분류마다 상위 25건씩 후보로 보낸다
+        ranked += sorted((a for a in candidates if a.category is category), key=score, reverse=True)[:25]
+    listing = "\n".join(
+        f"{i}. <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
+        + (f" - {a.source}" if a.source else "")
+        + (f"\n   {a.description}" if a.description else "")
+        for i, a in enumerate(ranked)
+    )
+    prompt = f"""아래는 최근 나온 한국 뉴스 후보입니다. <분류>는 검색 기준으로 붙인 것이라 틀릴 수 있습니다.
+부동산·세금에 관심 있는 일반인이 모인 오픈채팅방에 공유할 기사를 {MIN_ITEMS}~{MAX_ITEMS}개 골라 주세요.
+
+구성
+- 주제가 한쪽으로 쏠리지 않게 아래 세 가지를 적당히 섞어 주세요. 정해진 비율은 없고,
+  그날 중요한 소식이 많은 쪽이 더 많아도 되지만 한 가지로만 채우지는 마세요.
+  - 부동산 정책: 정부·국회의 주택 공급, 대출 규제, 규제지역, 청약 제도 등 (세금 이야기가 아닌 것)
+  - 세금 정책: 상속세·증여세·종부세·양도세·재산세 등 세금 제도와 세법 개정
+  - 세무 칼럼: 세무사·전문가가 쓴 칼럼이나 절세 정보
+- 같은 사건은 하나만, 단순 시황·광고·분양 홍보·세무법인 홍보성 기사는 제외하세요.
+- 관련 기사 수가 많은(여러 언론이 다룬) 소식을 우선하세요.
+
+각 기사마다 짧은 제목(30자 이내)과 핵심 내용 한 문장 요약(60자 이내)을 쓰세요.
+요약은 후보에 적힌 제목·설명만 근거로 하고, 없는 내용을 추측하지 마세요. (이후 원문과 대조해 검증합니다)
+설명이 없는 기사는 제목에서 알 수 있는 사실만 풀어 쓰세요.
+이모지는 쓰지 마세요.
+
+JSON 배열만 출력하세요. 형식: [{{"index": 0, "category": "부동산 정책", "title": "...", "summary": "..."}}]
+category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용에 맞게 다시 판단해 쓰세요.
+
+후보
+{listing}"""
+
     names = {c.name: c for c in CATEGORIES}
     picks = []
-    for p in json.loads(match.group(0))[:MAX_ITEMS]:
+    for p in ask_claude_json(prompt, effort="low")[:MAX_ITEMS]:
         idx = int(p["index"])
         if 0 <= idx < len(ranked):
             art = ranked[idx]
@@ -302,13 +305,84 @@ category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용
     return by_category_order(picks)
 
 
+def fetch_article_text(url: str, hint: str) -> str:
+    """기사 페이지 본문 텍스트. hint(네이버 발췌문) 근처를 잘라 본문 위주로 돌려준다."""
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (news-digest)"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        raw = resp.read(2_000_000)
+        charset = resp.headers.get_content_charset()
+    if not charset:
+        m = re.search(rb'charset=["\']?([A-Za-z0-9_-]+)', raw[:5000])
+        charset = m.group(1).decode() if m else "utf-8"
+    if charset.lower() in ("euc-kr", "ks_c_5601-1987"):
+        charset = "cp949"
+    page = raw.decode(charset, errors="replace")
+    page = re.sub(r"(?is)<(script|style|noscript)\b.*?</\1>|<!--.*?-->", " ", page)
+    text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page))).strip()
+    anchor = text.find(hint[:15]) if len(hint) >= 15 else -1
+    start = max(anchor - 1500, 0) if anchor >= 0 else 0
+    return text[start : start + 8000]
+
+
+def verify_with_source(picks: list[tuple[Article, str, str]]) -> tuple[list[tuple[Article, str, str]], list[str]]:
+    """Claude가 쓴 제목·요약을 기사 원문과 대조해 인물·직함·숫자·날짜를 바로잡는다.
+
+    원문을 열 수 없거나 검증에 실패한 기사는 지어낸 내용이 없도록 원래 제목과 네이버 발췌문을 그대로 쓴다.
+    돌려주는 notes는 사람이 확인할 수 있게 이슈에 함께 올리는 검증 기록이다.
+    """
+    sources: dict[int, str] = {}
+    for i, (art, _, _) in enumerate(picks):
+        try:
+            sources[i] = fetch_article_text(art.url, art.description)
+        except Exception as e:
+            print(f"[warn] 원문을 열 수 없음 {art.url}: {e}", file=sys.stderr)
+
+    fallback = lambda art: (art, display_title(art.title), short(art.description))  # noqa: E731
+    results: dict[int, dict] = {}
+    if sources:
+        blocks = "\n\n".join(
+            f"[{i}]\n제목 후보: {picks[i][1]}\n요약 후보: {picks[i][2]}\n원래 기사 제목: {picks[i][0].title}\n원문: {text}"
+            for i, text in sources.items()
+        )
+        prompt = f"""아래 각 기사에 대해 "제목 후보"와 "요약 후보"를 "원문"과 한 글자씩 대조해 검증하세요.
+
+확인할 것: 사람 이름, 직함·소속(장관/차관, 의원 소속 정당 등), 기관명, 숫자와 단위(억/조/%/명), 날짜, 법안·제도 이름.
+- 원문에 근거가 없거나 원문과 다른 내용이 있으면 원문에 맞게 고치세요.
+- 원문에서 확인할 수 없는 내용은 빼세요. 추측으로 채우지 마세요.
+- 고친 뒤에도 제목은 30자 이내, 요약은 한 문장 60자 이내로, 이모지 없이 쓰세요.
+- 원문이 기사 본문이 아니라 목록·오류 페이지 등이라 검증할 수 없으면 ok를 false로 하세요.
+
+JSON 배열만 출력하세요. 형식:
+[{{"index": 0, "ok": true, "title": "...", "summary": "...", "fixes": "고친 내용을 '틀린 것 → 맞는 것'으로, 없으면 빈 문자열"}}]
+
+{blocks}"""
+        try:
+            results = {int(r["index"]): r for r in ask_claude_json(prompt, effort="medium")}
+        except Exception as e:
+            print(f"[warn] 원문 대조 검증 실패: {e}", file=sys.stderr)
+
+    verified, notes = [], []
+    for i, pick in enumerate(picks):
+        art = pick[0]
+        r = results.get(i)
+        if r and r.get("ok") and r.get("title") and r.get("summary"):
+            verified.append((art, r["title"].strip(), r["summary"].strip()))
+            fixes = (r.get("fixes") or "").strip()
+            notes.append(f"{i + 1}번: 원문 대조 완료" + (f" (수정: {fixes})" if fixes else ""))
+        else:
+            verified.append(fallback(art))
+            why = "원문을 열 수 없어" if i not in sources else "원문으로 검증하지 못해"
+            notes.append(f"{i + 1}번: {why} 기사 원래 제목과 발췌문을 그대로 사용")
+    return verified, notes
+
+
 def render(picks: list[tuple[Article, str, str]], today: datetime) -> str:
     # 카카오톡에 그대로 붙여넣으므로 이모지는 쓰지 않는다
     lines = [f"[{today:%m/%d}({WEEKDAYS[today.weekday()]}) 상속·증여·부동산 세금 뉴스]", ""]
     if not picks:
         lines += ["오늘은 눈에 띄는 관련 뉴스가 없었어요.", ""]
     for i, (art, title, summary) in enumerate(picks, start=1):
-        lines.append(f"{i}. [{art.category.name}] {title}")
+        lines.append(f"{i}. {title}")
         if summary:
             lines.append(f"- {summary}")
         lines += [f"{art.source + ' ' if art.source else ''}{art.url}", ""]
@@ -336,18 +410,25 @@ def main() -> None:
     print(f"후보 기사 {len(candidates)}건", file=sys.stderr)
 
     picks: list[tuple[Article, str, str]] = []
+    notes: list[str] = []
     if candidates and os.environ.get("ANTHROPIC_API_KEY"):
         try:
             picks = pick_by_claude(candidates)
         except Exception as e:
             print(f"[warn] Claude 선별 실패, 규칙 기반으로 대체: {e}", file=sys.stderr)
+        if picks:
+            picks, notes = verify_with_source(picks)
     if not picks:
+        # 규칙 기반은 기사 제목과 발췌문을 그대로 쓰므로 따로 검증하지 않는다
         picks = pick_by_rules(candidates)
 
     message = render(picks, now)
     with open(os.environ.get("OUTPUT_PATH", "digest.md"), "w", encoding="utf-8") as f:
         f.write(message + "\n")
+    with open(os.environ.get("NOTES_PATH", "notes.md"), "w", encoding="utf-8") as f:
+        f.write("".join(f"- {n}\n" for n in notes))
     print(message)
+    print("\n".join(notes), file=sys.stderr)
 
 
 if __name__ == "__main__":

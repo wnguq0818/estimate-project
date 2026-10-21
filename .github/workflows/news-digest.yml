@@ -27,6 +27,7 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OUTPUT_PATH: digest.md
+          NOTES_PATH: notes.md
         run: python news_digest/digest.py
 
       - name: 이슈로 게시
@@ -39,6 +40,12 @@ jobs:
             echo '```text'
             cat digest.md
             echo '```'
+            if [ -s notes.md ]; then
+              echo
+              echo '**원문 대조 검증** (공유 메시지에는 들어가지 않습니다)'
+              echo
+              cat notes.md
+            fi
           } > body.md
           cat body.md >> "$GITHUB_STEP_SUMMARY"
 
