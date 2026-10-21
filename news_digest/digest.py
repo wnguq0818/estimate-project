@@ -1,6 +1,6 @@
 """상속·증여·세금·부동산 정책 뉴스 브리핑 생성기.
 
-Google 뉴스 RSS(와 키가 있으면 네이버 뉴스 검색 API)로 최근 기사를 모으고,
+네이버 뉴스 검색 API(키가 없거나 실패하면 Google 뉴스 RSS)로 최근 기사를 모으고,
 부동산 정책·세금 정책·세무 칼럼이 고루 섞이도록 3~5건을 골라
 카카오톡 오픈채팅방에 붙여넣을 메시지(digest.md)를 만든다.
 
@@ -90,7 +90,7 @@ class Article:
     url: str
     published: datetime
     category: Category
-    source: str = ""  # 언론사 이름 (Google 뉴스만 제공)
+    source: str = ""  # 언론사 이름 (Google 뉴스만 제공, 네이버는 빈 값)
     related: int = 1  # 같은 사건을 다룬 기사 수 (중복 제거 후 누적)
 
 
@@ -176,8 +176,8 @@ def collect(fetchers: dict[str, Fetcher], now: datetime) -> list[Article]:
                     articles[url] = Article(title, item["description"], url, published, category, item["source"])
                     counts[name] += 1
     print("출처별 수집: " + ", ".join(f"{n} {c}건" for n, c in counts.items()), file=sys.stderr)
-    if not succeeded:  # 빈 브리핑을 올리는 대신 워크플로를 실패시켜 알림이 가게 한다
-        sys.exit("모든 뉴스 검색이 실패했습니다.")
+    if not succeeded:
+        raise RuntimeError(f"{', '.join(fetchers)} 뉴스 검색이 모두 실패했습니다.")
     return list(articles.values())
 
 
@@ -317,14 +317,22 @@ def render(picks: list[tuple[Article, str, str]], today: datetime) -> str:
 
 
 def main() -> None:
-    fetchers: dict[str, Fetcher] = {"Google": fetch_google}
+    now = datetime.now(KST)
     client_id = os.environ.get("NAVER_CLIENT_ID", "").strip()
     client_secret = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+    articles: list[Article] | None = None
+    # 네이버를 우선 쓴다 (기사 원래 주소가 와서 링크가 짧다). 키가 없거나 네이버가 모두 실패하면 Google로 대신한다.
     if client_id and client_secret:
-        fetchers["Naver"] = lambda q, _hours: fetch_naver(q, client_id, client_secret)
-
-    now = datetime.now(KST)
-    candidates = dedupe(collect(fetchers, now))
+        try:
+            articles = collect({"Naver": lambda q, _hours: fetch_naver(q, client_id, client_secret)}, now)
+        except RuntimeError as e:
+            print(f"[warn] {e} Google 뉴스로 대신합니다.", file=sys.stderr)
+    if articles is None:
+        try:
+            articles = collect({"Google": fetch_google}, now)
+        except RuntimeError as e:  # 빈 브리핑을 올리는 대신 워크플로를 실패시켜 알림이 가게 한다
+            sys.exit(str(e))
+    candidates = dedupe(articles)
     print(f"후보 기사 {len(candidates)}건", file=sys.stderr)
 
     picks: list[tuple[Article, str, str]] = []
