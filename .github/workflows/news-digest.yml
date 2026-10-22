@@ -2,7 +2,7 @@ name: 부동산 세금 뉴스 브리핑
 
 on:
   schedule:
-    - cron: "45 23 * * *" # 매일 08:45 KST (UTC 23:45). GitHub 사정으로 수 분~수십 분 늦을 수 있음
+    - cron: "57 22 * * *" # 매일 07:57 KST (UTC 22:57). 정각은 GitHub가 붐벼 피함. 수 분~1시간 늦을 수 있음
   workflow_dispatch: # Actions 탭에서 수동 실행
 
 permissions:
