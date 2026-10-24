@@ -9,6 +9,7 @@
   ANTHROPIC_API_KEY                     (선택) 있으면 Claude가 기사 선별·요약
   OUTPUT_PATH                           (선택) 결과 파일 경로, 기본 digest.md
   NOTES_PATH                            (선택) 원문 대조 검증 기록 경로, 기본 notes.md
+  HISTORY_PATH                          (선택) 지난 브리핑 이슈 목록(JSON), 기본 history.json. 여기 나온 기사는 다시 넣지 않는다
 """
 
 from __future__ import annotations
@@ -196,6 +197,49 @@ def same_story(a: str, b: str) -> bool:
     # 표현이 달라도 핵심 단어(인물·기관·사건)가 많이 겹치면 같은 사건으로 본다
     wa, wb = words(a), words(b)
     return len(wa & wb) >= 3 and len(wa & wb) / min(len(wa), len(wb)) >= 0.4
+
+
+TRACKING_PARAMS = {"ref", "input", "from", "sid", "utm_source", "utm_medium", "utm_campaign"}
+
+
+def canonical_url(url: str) -> str:
+    """같은 기사인데 추적용 파라미터만 다른 주소를 같게 본다."""
+    parts = urllib.parse.urlsplit(url.strip())
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query) if k.lower() not in TRACKING_PARAMS]
+    host = parts.netloc.lower().removeprefix("www.")
+    return f"{host}{parts.path.rstrip('/')}?{urllib.parse.urlencode(sorted(query))}"
+
+
+def load_history(path: str, today: datetime) -> tuple[set[str], list[str]]:
+    """지난 브리핑(오늘 것 제외)에 나간 기사 주소와 제목.
+
+    파일은 `gh issue list --json body,createdAt` 결과다. 오늘 이미 올린 브리핑을 다시 만들 때
+    오늘 기사까지 빠지지 않도록 오늘(KST) 만든 이슈는 건너뛴다.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            issues = json.load(f)
+    except (OSError, ValueError):
+        return set(), []
+    urls: set[str] = set()
+    titles: list[str] = []
+    for issue in issues:
+        created = datetime.fromisoformat(issue["createdAt"].replace("Z", "+00:00")).astimezone(KST)
+        if created.date() >= today.date():
+            continue
+        body = issue.get("body") or ""
+        urls |= {canonical_url(u) for u in re.findall(r"https?://\S+", body)}
+        titles += re.findall(r"^\d+\. (.+)$", body, re.M)
+    return urls, titles
+
+
+def drop_already_sent(articles: list[Article], urls: set[str], titles: list[str]) -> list[Article]:
+    kept = [
+        a for a in articles
+        if canonical_url(a.url) not in urls and not any(same_story(a.title, t) for t in titles)
+    ]
+    print(f"지난 브리핑과 겹쳐 제외: {len(articles) - len(kept)}건", file=sys.stderr)
+    return kept
 
 
 def dedupe(articles: list[Article]) -> list[Article]:
@@ -406,7 +450,8 @@ def main() -> None:
             articles = collect({"Google": fetch_google}, now)
         except RuntimeError as e:  # 빈 브리핑을 올리는 대신 워크플로를 실패시켜 알림이 가게 한다
             sys.exit(str(e))
-    candidates = dedupe(articles)
+    sent_urls, sent_titles = load_history(os.environ.get("HISTORY_PATH", "history.json"), now)
+    candidates = drop_already_sent(dedupe(articles), sent_urls, sent_titles)
     print(f"후보 기사 {len(candidates)}건", file=sys.stderr)
 
     picks: list[tuple[Article, str, str]] = []
