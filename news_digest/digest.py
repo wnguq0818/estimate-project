@@ -305,12 +305,16 @@ def ask_claude_json(prompt: str, effort: str) -> list[dict]:
     return json.loads(match.group(0))
 
 
-def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
+def match_title(a: str, b: str) -> float:
+    return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
+
+
+def pick_by_claude(candidates: list[Article], sent_titles: list[str]) -> list[tuple[Article, str, str]]:
     ranked: list[Article] = []
     for category in CATEGORIES:  # 분류마다 상위 25건씩 후보로 보낸다
         ranked += sorted((a for a in candidates if a.category is category), key=score, reverse=True)[:25]
     listing = "\n".join(
-        f"{i}. <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
+        f"[K{i:03d}] <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
         + (f" - {a.source}" if a.source else "")
         + (f"\n   {a.description}" if a.description else "")
         for i, a in enumerate(ranked)
@@ -326,14 +330,21 @@ def pick_by_claude(candidates: list[Article]) -> list[tuple[Article, str, str]]:
   - 세무 칼럼: 세무사·전문가가 쓴 칼럼이나 절세 정보
 - 같은 사건은 하나만, 단순 시황·광고·분양 홍보·세무법인 홍보성 기사는 제외하세요.
 - 관련 기사 수가 많은(여러 언론이 다룬) 소식을 우선하세요.
+- 아래 "최근 브리핑에 나간 소식"과 같은 내용은 고르지 마세요. 다른 언론사 기사이거나
+  여러 소식을 묶은 기사여도, 새로 알려진 사실 없이 같은 내용이면 제외합니다.
 
 각 기사마다 짧은 제목(30자 이내)과 핵심 내용 한 문장 요약(60자 이내)을 쓰세요.
 요약은 후보에 적힌 제목·설명만 근거로 하고, 없는 내용을 추측하지 마세요. (이후 원문과 대조해 검증합니다)
 설명이 없는 기사는 제목에서 알 수 있는 사실만 풀어 쓰세요.
 이모지는 쓰지 마세요.
 
-JSON 배열만 출력하세요. 형식: [{{"index": 0, "category": "부동산 정책", "title": "...", "summary": "..."}}]
+JSON 배열만 출력하세요. 형식:
+[{{"id": "K000", "source_title": "후보 목록의 기사 제목을 그대로 복사", "category": "부동산 정책", "title": "...", "summary": "..."}}]
+id는 후보 앞의 [K000] 같은 번호, source_title은 그 후보의 제목을 한 글자도 바꾸지 말고 복사하세요.
 category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용에 맞게 다시 판단해 쓰세요.
+
+최근 브리핑에 나간 소식
+{chr(10).join(f"- {t}" for t in sent_titles) or "- (없음)"}
 
 후보
 {listing}"""
@@ -341,11 +352,21 @@ category는 {", ".join(c.name for c in CATEGORIES)} 중 하나로, 기사 내용
     names = {c.name: c for c in CATEGORIES}
     picks = []
     for p in ask_claude_json(prompt, effort="low")[:MAX_ITEMS]:
-        idx = int(p["index"])
-        if 0 <= idx < len(ranked):
-            art = ranked[idx]
-            art.category = names.get(p.get("category"), art.category)
-            picks.append((art, p["title"].strip(), p["summary"].strip()))
+        m = re.fullmatch(r"K(\d+)", str(p.get("id", "")).strip())
+        art = ranked[int(m.group(1))] if m and int(m.group(1)) < len(ranked) else None
+        source_title = str(p.get("source_title", ""))
+        # 번호를 한 칸 잘못 짚으면 제목과 다른 기사의 링크가 붙는다. 복사한 제목으로 다시 확인한다.
+        if art is None or match_title(source_title, art.title) < 0.8:
+            best = max(ranked, key=lambda a: match_title(source_title, a.title))
+            if match_title(source_title, best.title) < 0.8:
+                print(f"[warn] 고른 기사를 찾지 못해 뺌: {p.get('id')} {source_title}", file=sys.stderr)
+                continue
+            print(f"[warn] 번호가 제목과 달라 제목 기준으로 바로잡음: {p.get('id')} -> {source_title}", file=sys.stderr)
+            art = best
+        if any(art is q[0] for q in picks):
+            continue
+        art.category = names.get(p.get("category"), art.category)
+        picks.append((art, p["title"].strip(), p["summary"].strip()))
     return by_category_order(picks)
 
 
@@ -395,6 +416,7 @@ def verify_with_source(picks: list[tuple[Article, str, str]]) -> tuple[list[tupl
 - 원문에서 확인할 수 없는 내용은 빼세요. 추측으로 채우지 마세요.
 - 고친 뒤에도 제목은 30자 이내, 요약은 한 문장 60자 이내로, 이모지 없이 쓰세요.
 - 원문이 기사 본문이 아니라 목록·오류 페이지 등이라 검증할 수 없으면 ok를 false로 하세요.
+- 원문이 "원래 기사 제목"이나 제목·요약 후보와 다른 사건을 다룬 기사이면 고치지 말고 ok를 false로 하세요.
 
 JSON 배열만 출력하세요. 형식:
 [{{"index": 0, "ok": true, "title": "...", "summary": "...", "fixes": "고친 내용을 '틀린 것 → 맞는 것'으로, 없으면 빈 문자열"}}]
@@ -458,7 +480,7 @@ def main() -> None:
     notes: list[str] = []
     if candidates and os.environ.get("ANTHROPIC_API_KEY"):
         try:
-            picks = pick_by_claude(candidates)
+            picks = pick_by_claude(candidates, sent_titles)
         except Exception as e:
             print(f"[warn] Claude 선별 실패, 규칙 기반으로 대체: {e}", file=sys.stderr)
         if picks:
