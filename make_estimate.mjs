@@ -1,7 +1,7 @@
 // 감정평가 견적서 PDF 생성 (하이테크 양식, output/의 기존 견적서와 같은 모양)
 // 사용: node make_estimate.mjs estimates/<이름>.json output/견적서_<이름>.pdf
 // 입력 예시는 estimates/ 참고. 금액(원), travel=여비, expense=실비, rate=0.8/1.0/1.2(생략 시 1.0)
-// 지분평가는 share 추가 (estimates/신림동1431-20_30%지분_5.43억.json 참고)
+// 지분평가는 share 추가 (estimates/신길동194-57_30%지분_3.6억.json 참고)
 // 글꼴: fonts/NanumGothic-Regular.ttf, fonts/NanumGothic-Bold.ttf (README 참고)
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
