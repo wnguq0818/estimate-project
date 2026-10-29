@@ -1,0 +1,4 @@
+{"docno":"HI261022-1501","address":"서울특별시 영등포구 신길동 194-57","value":1200000000,
+ "share":{"ratio":0.3,"label":"30%","fraction":"3/10","feeMult":1.2},
+ "items":[{"cat":"토지","type":"제3종일반주거지역","area":"89"},{"cat":"건물","type":"건물","area":"114.86"}],
+ "travel":40000,"travelNote":"(서울 영등포구 기준) 출장여비","expense":30000}

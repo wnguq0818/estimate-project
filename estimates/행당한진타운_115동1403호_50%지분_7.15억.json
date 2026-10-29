@@ -1,0 +1,4 @@
+{"docno":"HI261021-1501","kind":"아파트","address":"서울특별시 성동구 행당로 82, 행당한진타운 115동 1403호","value":1430000000,"rate":0.8,
+ "share":{"ratio":0.5,"label":"50%","fraction":"1/2","feeMult":1.2},
+ "items":[{"cat":"집합건물","type":"아파트","area":"1세대"}],
+ "travel":40000,"travelNote":"(서울 성동구 기준) 출장여비","expense":30000}
