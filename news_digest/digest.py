@@ -309,12 +309,29 @@ def match_title(a: str, b: str) -> float:
     return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
 
 
+# 전국 단위 종합·경제지와 방송사. 대중적인 소식을 고르는 참고 표시로만 쓴다.
+MAJOR_OUTLETS = {
+    "yna.co.kr", "newsis.com", "news1.kr", "chosun.com", "joongang.co.kr", "donga.com", "hani.co.kr",
+    "khan.co.kr", "hankookilbo.com", "munhwa.com", "kmib.co.kr", "seoul.co.kr", "segye.com",
+    "hankyung.com", "mk.co.kr", "sedaily.com", "edaily.co.kr", "mt.co.kr", "fnnews.com",
+    "heraldcorp.com", "asiae.co.kr", "etoday.co.kr", "kbs.co.kr", "imbc.com", "sbs.co.kr",
+    "jtbc.co.kr", "ytn.co.kr", "yonhapnewstv.co.kr", "mbn.co.kr", "ichannela.com",
+}
+
+
+def is_major(url: str) -> bool:
+    host = urllib.parse.urlsplit(url).netloc.lower()
+    return any(host == d or host.endswith("." + d) for d in MAJOR_OUTLETS)
+
+
 def pick_by_claude(candidates: list[Article], sent_titles: list[str]) -> list[tuple[Article, str, str]]:
     ranked: list[Article] = []
-    for category in CATEGORIES:  # 분류마다 상위 25건씩 후보로 보낸다
-        ranked += sorted((a for a in candidates if a.category is category), key=score, reverse=True)[:25]
+    for category in CATEGORIES:  # 분류마다 여러 언론이 다룬 소식 순으로 상위 25건씩 후보로 보낸다
+        ranked += sorted((a for a in candidates if a.category is category),
+                         key=lambda a: (a.related, is_major(a.url), score(a)), reverse=True)[:25]
     listing = "\n".join(
-        f"[K{i:03d}] <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건) {a.title}"
+        f"[K{i:03d}] <{a.category.name}> [{a.published.astimezone(KST):%m/%d %H:%M}] (관련기사 {a.related}건)"
+        + (" (주요언론)" if is_major(a.url) else "") + f" {a.title}"
         + (f" - {a.source}" if a.source else "")
         + (f"\n   {a.description}" if a.description else "")
         for i, a in enumerate(ranked)
@@ -328,10 +345,16 @@ def pick_by_claude(candidates: list[Article], sent_titles: list[str]) -> list[tu
   - 부동산 정책: 정부·국회의 주택 공급, 대출 규제, 규제지역, 청약 제도 등 (세금 이야기가 아닌 것)
   - 세금 정책: 상속세·증여세·종부세·양도세·재산세 등 세금 제도와 세법 개정
   - 세무 칼럼: 세무사·전문가가 쓴 칼럼이나 절세 정보
+- 대중적인 소식을 고르세요. 많은 사람이 이미 들었거나 궁금해할 만한 전국 단위 뉴스가 우선입니다.
+  - 우선: 관련 기사 수가 많은(여러 언론이 다룬) 소식, 정부·국회의 큰 정책 발표와 세법 개정,
+    집값·전월세·대출·세금 부담처럼 일반인 생활에 바로 영향을 주는 소식, (주요언론) 표시가 있는 기사
+  - 제외: 시장·군수·지방의원 동정이나 한 지역에만 해당하는 소식(전국적으로 크게 보도된 경우는 예외),
+    특정 업종·기업만 해당하는 세제, 부동산·상속·증여와 관계없는 세금(근로장려금, 법인 투자 절세 등)
+- 세무 칼럼은 상속·증여·양도처럼 개인이 바로 써먹을 수 있는 주제로 하나 정도만 넣으세요.
 - 같은 사건은 하나만, 단순 시황·광고·분양 홍보·세무법인 홍보성 기사는 제외하세요.
-- 관련 기사 수가 많은(여러 언론이 다룬) 소식을 우선하세요.
 - 아래 "최근 브리핑에 나간 소식"과 같은 내용은 고르지 마세요. 다른 언론사 기사이거나
   여러 소식을 묶은 기사여도, 새로 알려진 사실 없이 같은 내용이면 제외합니다.
+  칼럼도 같은 절세 요령(예: 부동산 대신 금융재산으로 상속)을 다루면 다른 매체 글이어도 제외합니다.
 
 각 기사마다 짧은 제목(30자 이내)과 핵심 내용 한 문장 요약(60자 이내)을 쓰세요.
 요약은 후보에 적힌 제목·설명만 근거로 하고, 없는 내용을 추측하지 마세요. (이후 원문과 대조해 검증합니다)
