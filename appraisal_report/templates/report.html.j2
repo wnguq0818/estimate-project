@@ -1,0 +1,611 @@
+{% set R = d.report %}{% set O = d.office %}{% set CX = d.complex %}{% set SC = d.sales_comparison %}{% set INC = d.income %}{% set CI = c.income %}
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>감정평가서 {{ R.number }} — {{ O.name }}</title>
+<style>
+@page { size: A4; margin: 0; }
+:root {
+  --brand: #16443a;      /* 경율 딥그린 */
+  --brand-2: #2b6b5c;
+  --accent: #a8873a;     /* 골드 포인트 */
+  --line: #3a3a3a;
+  --soft: #e7eeeb;       /* 표 머리 */
+  --soft-2: #f4f7f5;
+  --total: #fbf3dd;      /* 합계 강조 */
+  --ink: #1b1b1b;
+  --muted: #666;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #8a8f8d; }
+body {
+  font-family: 'NanumSquare', 'NanumBarunGothic', 'Nanum Gothic', 'Noto Sans KR', 'Malgun Gothic', 'Noto Sans CJK KR', 'WenQuanYi Zen Hei', sans-serif;
+  color: var(--ink); font-size: 10pt; line-height: 1.55;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.page {
+  width: 210mm; height: 297mm; margin: 0 auto 8mm; background: #fff;
+  position: relative; overflow: hidden; padding: 14mm 17mm 20mm;
+  page-break-after: always; break-after: page;
+}
+.page:last-child { page-break-after: auto; break-after: auto; }
+@media print { html, body { background: #fff; } .page { margin: 0; } }
+
+/* 공통 머리/꼬리 */
+.docno { font-size: 8.5pt; color: var(--muted); letter-spacing: .02em; display: flex; justify-content: space-between; align-items: center; }
+.docno .brandmini { color: var(--brand); font-weight: 700; letter-spacing: .08em; }
+.pfoot { position: absolute; left: 17mm; right: 17mm; bottom: 10mm; border-top: 1.5px solid var(--brand); padding-top: 2mm;
+  display: flex; justify-content: space-between; font-size: 8pt; color: var(--muted); }
+.pfoot .pn { color: var(--ink); font-weight: 700; }
+
+.form-title { text-align: center; font-size: 21pt; font-weight: 800; letter-spacing: .06em; margin: 9mm 0 4mm; }
+.rule { height: 5px; display: flex; margin-bottom: 4mm; }
+.rule i:first-child { flex: 0 0 22%; background: var(--brand); }
+.rule i:last-child  { flex: 1; background: var(--accent); opacity: .55; }
+
+.opbar { margin-top: 3mm; background: var(--brand); color: #fff; font-size: 15pt; font-weight: 700; letter-spacing: .12em;
+  padding: 2.2mm 4mm; border-bottom: 3px solid var(--accent); }
+.opbody { padding: 2mm 2mm 0; }
+
+h2.chap { font-size: 15pt; font-weight: 800; margin: 7mm 0 5mm; padding-bottom: 1.2mm; border-bottom: 1.5px solid var(--brand); color: var(--brand); }
+h3.sec { font-size: 11.5pt; font-weight: 800; margin: 6mm 0 2.5mm; }
+h4.sub { font-size: 10.5pt; font-weight: 800; margin: 5mm 0 2mm; }
+h5.ssub { font-size: 10pt; font-weight: 700; margin: 4mm 0 2mm; }
+p { margin: 1.5mm 0; text-align: justify; }
+.ind { padding-left: 4mm; }
+ol.paren { margin: 1mm 0; padding-left: 0; list-style: none; }
+ol.paren li { padding-left: 7mm; text-indent: -7mm; margin: 1.5mm 0; }
+.src { text-align: right; font-size: 8.5pt; color: var(--muted); margin: 1mm 0 1mm; }
+.note { font-size: 9pt; margin: 1.5mm 0; }
+.bullet { font-size: 9.5pt; margin: 2mm 0 1mm; }
+.bullet::before { content: '■ '; color: var(--brand); }
+.hl { font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.formula { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; padding: 2.5mm; margin: 3mm 0; font-weight: 700; background: var(--soft-2); }
+
+/* 표 */
+table { border-collapse: collapse; width: 100%; }
+.tbl { font-size: 9pt; margin: 1mm 0 2mm; }
+.tbl th, .tbl td { border: 1px solid #9aa5a1; padding: 1.4mm 1.5mm; text-align: center; vertical-align: middle; }
+.tbl th { background: var(--soft); font-weight: 700; }
+.tbl { border-top: 2px solid var(--brand); border-bottom: 1.5px solid var(--brand); }
+.tbl tr.total td, .tbl tr.total th { background: var(--total); font-weight: 800; }
+.tbl td.l { text-align: left; }
+.tbl td.r { text-align: right; }
+.tbl td.pre { white-space: pre-line; }
+
+/* 표지 */
+.cover { padding: 0; }
+.cover .frame { position: absolute; inset: 12mm; border: 1px solid var(--brand); }
+.cover .frame::after { content: ''; position: absolute; inset: 1.6mm; border: .5px solid var(--accent); }
+.cover .band { position: absolute; left: 12mm; right: 12mm; top: 12mm; height: 10mm; background: var(--brand); }
+.cover .band::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2mm; height: 2mm; background: var(--accent); }
+.cover .inner { position: absolute; inset: 12mm; padding: 34mm 22mm 0; }
+.cover h1 { margin: 0; text-align: center; font-size: 40pt; font-weight: 800; letter-spacing: .55em; padding-left: .55em; }
+.cover .en { text-align: center; font-size: 15pt; font-weight: 700; letter-spacing: .25em; color: var(--brand); margin-top: 3mm; }
+.cover .meta { margin: 20mm 8mm 0; border-top: 2px solid var(--brand); border-bottom: 2px solid var(--accent); padding: 6mm 4mm; }
+.cover .meta table td { padding: 2.6mm 1mm; font-size: 11.5pt; vertical-align: top; }
+.cover .meta td.k { width: 30mm; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.cover .meta td.k span { display: inline-block; width: 22mm; text-align: justify; text-align-last: justify; }
+.cover .meta td.v { font-weight: 700; }
+.cover .notice { position: absolute; left: 34mm; right: 34mm; bottom: 66mm; border: 1px solid #888; padding: 3mm 4mm; font-size: 9pt; text-align: center; line-height: 1.7; color: #333; }
+.cover .office { position: absolute; left: 0; right: 0; bottom: 26mm; text-align: center; }
+.cover .office .logo { display: inline-flex; align-items: center; gap: 4mm; }
+.cover .office .name { font-size: 18pt; font-weight: 800; letter-spacing: .08em; }
+.cover .office .name em { font-style: normal; color: var(--brand); }
+.cover .office .contact { margin-top: 3mm; font-size: 9.5pt; font-weight: 700; color: #333; letter-spacing: .03em; }
+.cover .office .contact span + span { margin-left: 6mm; }
+
+/* 감정평가표 */
+.form { border: 1.5px solid var(--line); }
+.form td, .form th { border: 1px solid #555; padding: 1.8mm 1.5mm; text-align: center; font-size: 9.6pt; }
+.form th { background: var(--soft); font-weight: 700; }
+.oath { border: 1.5px solid var(--line); padding: 4mm 6mm 3mm; margin-bottom: 1.5mm; font-size: 10.2pt; line-height: 1.9; }
+.oath p { text-indent: 2.5mm; margin: 0; text-align: justify; }
+.sign { display: flex; justify-content: flex-end; align-items: center; gap: 6mm; margin-top: 3mm; }
+.sign .who { text-align: center; line-height: 1.8; }
+.sign .who b { letter-spacing: .3em; }
+.seal { width: 19mm; height: 19mm; border: 1.2px dashed #c0392b; border-radius: 50%; color: #c0392b; display: flex; align-items: center; justify-content: center; font-size: 9pt; }
+.hj { font-family: 'NanumGothic', 'WenQuanYi Zen Hei', serif; font-weight: 400; }
+.seal img, .sigimg img { max-width: 100%; max-height: 100%; }
+.sigimg { width: 38mm; height: 16mm; border-bottom: 1px solid #999; display: flex; align-items: flex-end; justify-content: center; color: #aaa; font-size: 8pt; }
+.amount { background: var(--total); font-size: 13pt !important; font-weight: 800; text-align: left !important; padding-left: 4mm !important; }
+.vert { writing-mode: vertical-rl; letter-spacing: 1.2em; font-weight: 700; background: var(--soft); }
+.ihy { letter-spacing: 3.2em; color: #333; }
+
+/* 명세표 */
+.spec td { word-break: keep-all; border-left: 1px solid #555; border-right: 1px solid #555; border-top: 0; border-bottom: 0; font-size: 9pt; padding: .6mm 1.2mm; text-align: center; vertical-align: top; }
+.spec th { border: 1px solid #555; background: var(--soft); font-size: 9pt; padding: 1.2mm; }
+.spec { border: 1.5px solid var(--line); }
+.spec td.r { text-align: right; }
+.spec td.l { text-align: left; }
+.spec tr.total td { background: var(--total); border-top: 1px solid #555; border-bottom: 1px solid #555; font-weight: 800; padding: 1.5mm; vertical-align: middle; }
+.spec tr.fill td { height: 100%; }
+
+/* 위치도·사진 */
+.mapbox { border: 1px solid var(--line); height: 198mm; display: flex; align-items: center; justify-content: center; background: var(--soft-2); overflow: hidden; }
+.mapbox img { width: 100%; height: 100%; object-fit: cover; }
+.ph { color: #8a9692; font-size: 10pt; text-align: center; line-height: 1.8; }
+.legend { display: flex; justify-content: center; gap: 4mm; margin-top: 4mm; font-size: 9pt; }
+.legend span { border: 1px solid #bbb; padding: 1.2mm 6mm; box-shadow: 1px 1px 0 #ddd; }
+.photos { border: 1px solid var(--line); padding: 6mm 14mm; height: 236mm; display: flex; flex-direction: column; justify-content: space-around; }
+.photo { text-align: center; }
+.photo .frame { height: 92mm; border: 3px solid #9aa5a1; display: flex; align-items: center; justify-content: center; background: var(--soft-2); overflow: hidden; }
+.photo .frame img { width: 100%; height: 100%; object-fit: cover; }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm 4mm; margin-top: 8mm; }
+.grid4 .gh { background: var(--brand); color: #fff; text-align: center; padding: 1.6mm; font-weight: 700; border-bottom: 2px solid var(--accent); }
+.grid4 .frame { height: 82mm; background: var(--soft-2); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #9aa5a1; border-top: 0; }
+.grid4 .frame img { width: 100%; height: 100%; object-fit: cover; }
+.photo .cap { margin-top: 2mm; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+{# ============================================================ 표지 #}
+{% macro logo(size=16) -%}
+<svg width="{{ size }}mm" height="{{ size }}mm" viewBox="0 0 64 64" aria-hidden="true">
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#16443a"/>
+  <rect x="6" y="6" width="52" height="52" rx="3" fill="none" stroke="#a8873a" stroke-width="1.5"/>
+  <text x="32" y="29" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="NanumSquare, 'Noto Sans KR', sans-serif">경</text>
+  <text x="32" y="50" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="NanumSquare, 'Noto Sans KR', sans-serif">율</text>
+</svg>
+{%- endmacro %}
+
+<section class="page cover">
+  <div class="frame"></div><div class="band"></div>
+  <div class="inner">
+    <h1>감정평가서</h1>
+    <div class="en">APPRAISAL REPORT</div>
+    <div class="meta">
+      <table>
+        <tr><td class="k"><span>건명</span> :</td><td class="v">{{ R.title }}</td></tr>
+        <tr><td class="k"><span>의뢰인</span> :</td><td class="v">{{ R.client }}</td></tr>
+        <tr><td class="k"><span>감정서번호</span> :</td><td class="v">{{ R.number }}</td></tr>
+        <tr><td class="k"><span>기준시점</span> :</td><td class="v">{{ R.base_date|long_date }}</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="notice">
+    이 감정평가서는 감정평가 의뢰목적 외의 목적에 사용하거나<br>
+    타인(의뢰인 또는 제출처가 아닌 자)이 사용할 수 없을 뿐 아니라<br>
+    복사, 개작(<span class="hj">改作</span>), 전재(<span class="hj">轉載</span>)할 수 없으며 이로 인한 결과에 대하여<br>
+    감정평가법인등은 책임을 지지 않습니다.
+  </div>
+  <div class="office">
+    <div class="logo">{{ logo(15) }}<div class="name">감정평가사사무소 <em>{{ O.name_short }}</em></div></div>
+    <div class="contact"><span>TEL. {{ O.tel }}</span><span>FAX. {{ O.fax }}</span></div>
+    <div class="contact" style="font-weight:400;margin-top:1mm">{{ O.address }}</div>
+  </div>
+</section>
+
+{# ============================================================ 감정평가표 #}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="form-title">({{ R.property_kind }}) 감정평가표</div>
+  <div class="rule"><i></i><i></i></div>
+
+  <div class="oath">
+    <p>본인은 감정평가에 관한 법규를 준수하고 감정평가이론에 따라 성실하고 공정하게 이 감정평가서를 작성하였기에 서명날인합니다.</p>
+    <div class="sign">
+      <div class="who"><b>감정평가사</b><br>{{ O.appraiser }}</div>
+      <div class="sigimg">{% if img(O.signature_image) %}<img src="{{ img(O.signature_image) }}">{% else %}(서명){% endif %}</div>
+      <div class="seal">{% if img(O.seal_image) %}<img src="{{ img(O.seal_image) }}">{% else %}(인){% endif %}</div>
+    </div>
+  </div>
+
+  <table class="form">
+    <colgroup><col style="width:9mm"><col style="width:22mm"><col><col style="width:12mm"><col style="width:27mm"><col style="width:27mm"><col style="width:27mm"></colgroup>
+    <tr><th colspan="2">감정평가액</th><td colspan="5" class="amount">{{ c.final_korean }}원정 (₩{{ c.final|won }}.-)</td></tr>
+    <tr><th colspan="2">의 뢰 인</th><td colspan="2">{{ R.client }}</td><th>감정평가 목적</th><td colspan="2">{{ R.purpose }}</td></tr>
+    <tr><th colspan="2">제 출 처</th><td colspan="2">{{ R.submit_to }}</td><th>기 준 가 치</th><td colspan="2">{{ R.value_basis }}</td></tr>
+    <tr><th colspan="2">소 유 자<br><small>(대상업체명)</small></th><td colspan="2">{{ R.owner }}</td><th>감정평가조건</th><td colspan="2">{{ R.conditions }}</td></tr>
+    <tr><th colspan="2" rowspan="2">물건목록<br>표시근거</th><td colspan="2" rowspan="2" class="pre" style="white-space:pre-line;font-size:9pt">{{ R.basis_docs }}</td><th>기 준 시 점</th><th>조 사 기 간</th><th>작 성 일</th></tr>
+    <tr style="white-space:nowrap"><td>{{ R.base_date|dotted }}</td><td>{{ R.survey_date|dotted }}</td><td>{{ R.written_date|dotted }}</td></tr>
+    <tr><th colspan="2">기타 참고사항</th><td colspan="5" class="l" style="text-align:left">{{ R.other_notes or '' }}</td></tr>
+  </table>
+
+  <table class="form" style="margin-top:-1.5px">
+    <colgroup><col style="width:9mm"><col style="width:22mm"><col style="width:26mm"><col style="width:22mm"><col style="width:26mm"><col style="width:22mm"><col></colgroup>
+    <tr><td rowspan="{{ 3 + 5 }}" class="vert">평가내용</td><th colspan="2">공부(<span class="hj">公簿</span>)(의뢰)</th><th colspan="2">사 정</th><th colspan="2">감 정 평 가 액</th></tr>
+    <tr><th>종 류</th><th>면적 또는 수량(㎡)</th><th>종 류</th><th>면적 또는 수량(㎡)</th><th>단 가</th><th>금 액</th></tr>
+    <tr style="height:12mm"><td>{{ R.property_kind }}</td><td class="r" style="text-align:right">{{ d.units|length }}{{ R.unit_word or '개호' }}</td><td>{{ R.property_kind }}</td><td style="text-align:right">{{ d.units|length }}{{ R.unit_word or '개호' }}</td><td>-</td><td style="text-align:right">{{ c.final|won }}</td></tr>
+    <tr style="height:12mm"><td></td><td colspan="4"><span class="ihy">이하여백</span></td><td></td></tr>
+    {% for i in range(3) %}<tr style="height:12mm"><td></td><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}
+    <tr class="total"><th>합 계</th><td></td><td></td><td></td><td></td><td class="amount" style="text-align:right !important;font-size:10.5pt !important">₩{{ c.final|won }}.-</td></tr>
+  </table>
+
+  <table class="form" style="margin-top:2mm">
+    <tr><td style="height:34mm;text-align:left;vertical-align:top;padding:5mm 8mm">
+      <b>감정평가액의 산출근거 및 결정의견</b>
+      <div style="text-align:center;margin-top:10mm;letter-spacing:2.2em;font-weight:700">"별지참조"</div>
+    </td></tr>
+  </table>
+</section>
+
+{# ============================================================ 명세표 #}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="form-title">({{ R.property_kind }}) 감정평가명세표</div>
+  <div class="rule"><i></i><i></i></div>
+  <div style="text-align:right;font-size:8.5pt">페이지: 1</div>
+  <table class="tbl" style="margin:0 0 1mm;border-top:1.5px solid var(--line)"><tr><th style="width:22mm">건 물 명</th><td class="l">{{ CX.building_name }} {% for u in d.units %}{{ u.label }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr></table>
+  <table class="spec" style="height:205mm">
+    <colgroup><col style="width:8mm"><col style="width:19mm"><col style="width:15mm"><col style="width:20mm"><col style="width:31mm"><col style="width:18mm"><col style="width:16mm"><col style="width:23mm"><col></colgroup>
+    <tr><th rowspan="2">일련<br>번호</th><th rowspan="2">소재지</th><th rowspan="2">지 번</th><th rowspan="2">지 목<br>용 도</th><th rowspan="2">구 조<br>및<br>용도지역</th><th colspan="2">면 적 (㎡)</th><th rowspan="2">감정평가액</th><th rowspan="2">비 고</th></tr>
+    <tr><th>공 부</th><th>사 정</th></tr>
+    {% set nf = CX.floor_areas|length + 1 %}
+    <tr><td rowspan="{{ nf }}"></td><td rowspan="{{ nf }}" style="padding-top:3mm">{{ CX.si_do }}<br>{{ CX.si_gun_gu }}<br>{{ CX.dong }}<br><br>[도로명주소]<br>{{ CX.road_short|join('<br>')|safe }}</td>
+      <td rowspan="{{ nf }}" style="padding-top:3mm">{{ CX.jibun }}<br>{{ CX.building_name }}</td><td rowspan="{{ nf }}" style="padding-top:3mm">{{ CX.main_use }}</td>
+      <td style="padding-top:3mm;padding-bottom:2mm">{{ CX.structure }}<br>{{ CX.roof }}<br>{{ CX.floors_text }}</td><td></td><td rowspan="{{ nf }}"></td><td rowspan="{{ nf }}"></td><td rowspan="{{ nf }}" class="pre">{{ CX.spec_note or '' }}</td></tr>
+    {% for f in CX.floor_areas %}<tr><td>{{ f[0] }}</td><td class="r">{{ f[1]|area }}</td></tr>{% endfor %}
+    <tr><td style="padding-top:5mm">1</td><td style="padding-top:5mm">{{ CX.dong }}</td><td style="padding-top:5mm">{{ CX.jibun }}</td><td style="padding-top:5mm">{{ CX.land_category }}</td><td style="padding-top:5mm">{{ CX.zoning }}</td><td class="r" style="padding-top:5mm">{{ CX.land_area|area }}</td><td></td><td></td><td></td></tr>
+    {% for u in d.units %}{% set row = c.sc_rows[loop.index0] %}
+    <tr><td style="padding-top:5mm">{{ u.code }}</td><td></td><td></td><td></td>
+      <td style="padding-top:5mm">(내)<br>{{ u.structure }}<br>{{ u.label }}<br><br>1 {{ u.land_right_kind }}</td>
+      <td class="r" style="padding-top:5mm"><br><br>{{ u.area|area }}<br><br><span style="display:inline-block;text-align:center;line-height:1.25">{{ u.land_right_num|area }}<br><span style="border-top:1px solid #333;display:block">{{ u.land_right_den|area }}</span></span></td>
+      <td class="r" style="padding-top:5mm"><br><br>{{ u.area|area }}<br><br><br>{{ u.land_right_num|area }}</td>
+      <td class="r" style="padding-top:5mm"><br><br>{{ row.value|won }}</td>
+      <td class="l pre" style="padding-top:5mm"><br><br>{{ u.spec_note or '비준가액' }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td></td><td>합 계</td><td></td><td></td><td></td><td></td><td></td><td class="r">₩{{ c.final|won }}.-</td><td></td></tr>
+    <tr class="fill"><td></td><td></td><td></td><td></td><td colspan="3" style="padding-top:2mm"><span class="ihy">이하여백</span></td><td></td><td></td></tr>
+  </table>
+</section>
+
+{# ============================================================ 산출근거 및 결정의견 #}
+{% set pg = namespace(n=0) %}
+{% macro op_open() -%}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="opbar">감정평가액의 산출근거 및 결정 의견</div>
+  <div class="opbody">
+{%- endmacro %}
+{% macro op_close(n) -%}
+  </div>
+  <div class="pfoot"><span>{{ O.name }}</span><span class="pn">- {{ n }} -</span><span>{{ R.number }}</span></div>
+</section>
+{%- endmacro %}
+
+{# ---- p1 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h2 class="chap">Ⅰ. 감정평가 개요</h2>
+<h3 class="sec">1. 감정평가 목적</h3>
+<p class="ind">본건은 {{ CX.si_do }} {{ CX.si_gun_gu }} {{ CX.dong }} 소재 {{ R.landmark }}에 위치하는 {{ R.property_desc }}으로서, {{ R.purpose_long }} 목적의 감정평가임.</p>
+<h3 class="sec">2. 감정평가의 근거 및 기준</h3>
+<p class="ind">본 감정평가는 「감정평가 및 감정평가사에 관한 법률」, 「감정평가에 관한 규칙」, 「감정평가 실무기준」 등 관계법령의 규정과 제반 감정평가이론을 적용하여 감정평가하였음.</p>
+<h3 class="sec">3. 기준가치 및 감정평가조건</h3>
+<p class="ind">가. 본건은 「감정평가에 관한 규칙」 제5조 제1항의 “{{ R.value_basis }}”를 기준으로 하였음.</p>
+<p class="ind">나. {% if R.conditions in ['-', '', None] %}별도의 감정평가 조건은 없음.{% else %}{{ R.conditions }}{% endif %}</p>
+<h3 class="sec">4. 기준시점 결정 및 그 이유</h3>
+<p class="ind">「감정평가에 관한 규칙」 제9조 제2항에 따라 가격조사완료일인 <span class="hl">{{ R.base_date|long_date }}</span>을 기준시점으로 결정함.</p>
+<h3 class="sec">5. 실지조사 실시기간 및 내용</h3>
+<p class="ind">「감정평가에 관한 규칙」 제10조 제1항에 따라 본건 감정평가를 위한 실지조사는 {{ R.survey_date|long_date }}에 시행하여 대상물건의 현황 등을 직접 조사하고 가격자료를 수집하여 분석하였음.</p>
+<h3 class="sec">6. 감정평가방법</h3>
+<h4 class="sub">가. 감정평가 방식</h4>
+<ol class="paren ind">
+  <li>1) 원가방식 : 원가법 및 적산법 등 비용성의 원리에 기초한 감정평가방식</li>
+  <li>2) 비교방식 : 공시지가기준법 및 거래사례비교법, 임대사례비교법 등 시장성의 원리에 기초한 감정평가방식</li>
+  <li>3) 수익방식 : 수익환원법 및 수익분석법 등 수익성의 원리에 기초한 감정평가방식</li>
+</ol>
+{{ op_close(pg.n) }}
+
+{# ---- p2 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">나. {{ R.property_kind }}</h4>
+<h5 class="ssub">1) 구분건물의 감정평가방법 적용 규정</h5>
+<p class="ind">「감정평가에 관한 규칙」 제16조에 근거하여 「집합건물의 소유 및 관리에 관한 법률」에 따른 구분소유권의 대상이 되는 건물부분과 그 대지사용권을 일괄하여 감정평가하는 경우 등 동 규칙 제7조 제2항에 따라 토지와 건물을 일괄하여 감정평가할 때에는 거래사례비교법을 적용하여야 함.</p>
+<h5 class="ssub">2) 적용 감정평가방법</h5>
+<ol class="paren ind">
+  <li>(1) 거래사례비교법 : 대상물건과 가치형성요인이 같거나 비슷한 물건의 거래사례와 비교하여 대상물건의 현황에 맞게 사정보정, 시점수정, 가치형성요인 비교 등의 과정을 거쳐 대상물건의 가액을 산정하는 감정평가방법임.</li>
+  {% if INC %}<li>(2) 시산가액 조정 : 본건은 구분소유건물로서 「감정평가에 관한 규칙」 제16조에 따라 구분소유권의 대상이 되는 건물 부분과 대지사용권을 일체로 한 거래사례비교법으로 평가하였으며, 「감정평가에 관한 규칙」 제12조 제2항에 의거 대상물건은 수익성을 지니는 부동산으로서 거래사례비교법에 의한 시산가액을 수익환원법에 의한 시산가액과 비교하여 그 합리성을 검토하였음.</li>
+  {% else %}<li>(2) 시산가액 조정 : 본건은 구분소유건물로서 「감정평가에 관한 규칙」 제16조에 따라 구분소유권의 대상이 되는 건물 부분과 대지사용권을 일체로 한 거래사례비교법으로 평가하였음. 「감정평가에 관한 규칙」 제12조 제2항에 의거 다른 감정평가방식에 속하는 하나 이상의 감정평가방법으로 산출한 시산가액과 비교하여 합리성을 검토하여야 하나, {{ d.opinion.no_crosscheck_reason or '대상물건의 특성 등으로 다른 감정평가방법인 원가법과 수익환원법의 적용이 곤란하여 합리성 검토를 생략하였음.' }}</li>{% endif %}
+</ol>
+<h4 class="sub">다. 일괄 · 구분 · 부분감정평가를 시행한 경우 그 이유 및 내용</h4>
+<p class="ind">「감정평가에 관한 규칙」 제16조 및 제7조 제2항에 근거하여 「집합건물의 소유 및 관리에 관한 법률」에 따른 구분소유권의 대상이 되는 건물부분과 그 대지사용권을 일괄하여 감정평가하였음.</p>
+<h4 class="sub">라. 기타 감정평가 관련 사항</h4>
+<p class="ind">해당 없음.</p>
+<h3 class="sec">7. 그 밖의 사항</h3>
+{% for t in d.opinion.other %}<p class="ind">{{ '가나다라마바사'[loop.index0] }}. {{ t }}</p>{% endfor %}
+{{ op_close(pg.n) }}
+
+{# ---- p3: Ⅱ #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h2 class="chap">Ⅱ. 대상 부동산의 개황</h2>
+<h3 class="sec">1. 전체 단지 개요</h3>
+<div class="src">[자료출처 : 집합건축물대장 총괄표제부]</div>
+<table class="tbl">
+  <colgroup><col style="width:22%"><col style="width:31%"><col style="width:22%"><col></colgroup>
+  <tr><th>소재지</th><td colspan="3">{{ CX.jibun_address }}<br>[도로명주소] {{ CX.road_address }}</td></tr>
+  <tr><th>건물명칭</th><td colspan="3">{{ CX.building_name }}</td></tr>
+  <tr><th>구조</th><td>{{ CX.structure }}</td><th>층수(지하/지상)</th><td>{{ CX.floors_short }}</td></tr>
+  <tr><th>주용도</th><td>{{ CX.main_use }}</td><th>대지면적(㎡)</th><td>{{ CX.land_area|area }}</td></tr>
+  <tr><th>사용승인일</th><td>{{ CX.approval_date }}</td><th>연면적(㎡)</th><td>{{ CX.gross_area|area }}</td></tr>
+</table>
+<h3 class="sec">2. 대상 구분건물 개요</h3>
+{% set has_shared = d.units|selectattr('shared_area')|list|length > 0 %}
+<table class="tbl">
+  {% if has_shared %}
+  <tr><th>기호</th><th>{% if d.units[0].dong %}동/{% endif %}층/호수</th><th>용도</th><th>대지권(㎡)</th><th>① 전유면적(㎡)</th><th>② 주거공용면적(㎡)</th><th>①+② 면적(㎡)</th></tr>
+  {% for u in d.units %}<tr><td>{{ u.code }}</td><td>{% if u.dong %}{{ u.dong }}/{% endif %}{{ u.floor }}/{{ u.ho }}</td><td>{{ u.use }}</td><td>{{ u.land_right_num|area }}</td><td>{{ u.area|area }}</td><td>{{ u.shared_area|area }}</td><td>{{ (u.area + u.shared_area)|round(4)|area }}</td></tr>{% endfor %}
+  {% else %}
+  <tr><th style="width:14%">기호</th><th style="width:22%">층/호수</th><th>용도</th><th style="width:20%">전유면적(㎡)</th><th style="width:16%">비고</th></tr>
+  {% for u in d.units %}<tr><td>{{ u.code }}</td><td>{{ u.floor }}/{{ u.ho }}</td><td>{{ u.use }}</td><td>{{ u.area|area }}</td><td>{{ u.note }}</td></tr>{% endfor %}
+  {% endif %}
+</table>
+{% if CX.facilities %}
+<h3 class="sec">3. 건물 설비</h3>
+<table class="tbl">
+  <tr><th>설비명</th>{% for k, v in CX.facilities %}<th>{{ k }}</th>{% endfor %}</tr>
+  <tr><th>설치유무</th>{% for k, v in CX.facilities %}<td>{{ '○' if v else '-' }}</td>{% endfor %}</tr>
+</table>
+{% endif %}
+
+<h2 class="chap" style="margin-top:12mm">Ⅲ. 감정평가방법의 적용</h2>
+<h3 class="sec">1. 거래사례비교법에 의한 시산가액 산출</h3>
+<h4 class="sub">가. 개요</h4>
+<p class="ind">「감정평가에 관한 규칙」 제16조에 따라 대상물건과 가치형성요인이 같거나 비슷한 물건의 거래사례와 비교하여 대상물건의 현황에 맞게 사정보정, 시점수정, 가치형성요인 비교 등의 과정을 거쳐 대상물건의 가액을 산정하는 거래사례비교법을 적용함.</p>
+{{ op_close(pg.n) }}
+
+{# ---- p4 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">나. 거래사례의 선정</h4>
+<h5 class="ssub">1) 인근 지역 내 유사 부동산의 사례자료</h5>
+<div class="bullet">거래사례</div>
+<div class="src">[자료출처 : {{ SC.trades_source }}]</div>
+<table class="tbl">
+  <tr><th>일련<br>번호</th><th>소재지</th><th>동/<br>층/호</th><th>용도</th><th>전유<br>면적(㎡)</th><th>거래가액(원)<br>(원/전유㎡)</th><th>거래시점<br>(사용승인)</th><th>비고</th></tr>
+  {% for t in SC.trades %}<tr><td>{{ t.no }}</td><td class="pre">{{ t.addr }}</td><td class="pre">{{ t.dong_ho }}</td><td class="pre">{{ t.use }}</td><td>{{ t.area|area }}</td><td>{{ t.price|won }}<br>(@{{ t.unit|won }})</td><td>{{ t.date }}<br>({{ t.approval }})</td><td>{{ t.note }}</td></tr>{% endfor %}
+</table>
+{% if SC.appraisals %}<div class="bullet">평가사례</div>
+<div class="src">[자료출처 : {{ SC.appraisals_source }}]</div>
+<table class="tbl">
+  <tr><th>일련<br>번호</th><th>소재지<br>동/층/호</th><th>용도</th><th>전유<br>면적(㎡)</th><th>감정평가액(원)<br>(원/전유㎡)</th><th>기준시점<br>(사용승인)</th><th>평가<br>목적</th></tr>
+  {% for t in SC.appraisals %}<tr><td>{{ t.no }}</td><td class="pre">{{ t.addr }}</td><td class="pre">{{ t.use }}</td><td>{{ t.area|area }}</td><td>{{ t.price|won }}<br>(@{{ t.unit|won }})</td><td>{{ t.date }}<br>({{ t.approval }})</td><td>{{ t.purpose }}</td></tr>{% endfor %}
+</table>{% endif %}
+<h5 class="ssub">2) 비교거래사례의 선정</h5>
+<p class="ind">{{ SC.selected_reason }}</p>
+{{ op_close(pg.n) }}
+
+{# ---- p5 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">다. 가격 참고자료</h4>
+<h5 class="ssub">1) 인근지역 유사부동산의 가격수준</h5>
+<p class="ind">상기 거래사례, 평가사례, 인근 부동산중개업소 등을 통한 가격자료 등을 검토할 때, 인근지역 유사부동산의 가격수준은 아래와 같이 파악됨.</p>
+<table class="tbl">
+  <tr><th style="width:24%">구 분</th><th>가격수준</th><th style="width:28%">비 고</th></tr>
+  {% for p in SC.price_levels %}<tr><td>{{ p.label }}</td><td>{{ p.range }}</td><td class="pre">{{ p.note }}</td></tr>{% endfor %}
+</table>
+{% if SC.auctions %}<h5 class="ssub">2) 본 건물 내 경매 낙찰사례</h5>
+<div class="src">[자료출처 : {{ SC.auctions_source }}]</div>
+<table class="tbl">
+  <tr><th>일련<br>번호</th><th>소재지</th><th>동/<br>층/호</th><th>용도</th><th>전유<br>면적(㎡)</th><th>낙찰가액(원)<br>(원/전유㎡)</th><th>매각기일<br>(사용승인)</th><th>비고</th></tr>
+  {% for t in SC.auctions %}<tr><td>{{ t.no }}</td><td class="pre">{{ t.addr }}</td><td class="pre">{{ t.dong_ho }}</td><td class="pre">{{ t.use }}</td><td>{{ t.area|area }}</td><td>{{ t.price|won }}<br>(@{{ t.unit|won }})</td><td>{{ t.date }}<br>({{ t.approval }})</td><td>{{ t.note }}</td></tr>{% endfor %}
+</table>{% endif %}
+<h4 class="sub">라. 사정보정</h4>
+<p class="ind">{{ SC.situation_text }} ({{ '%.2f'|format(SC.situation_factor) }})</p>
+{{ op_close(pg.n) }}
+
+{# ---- p6 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">마. 시점수정</h4>
+{% if SC.time.method == 'index' %}
+<div class="bullet">비교거래사례{{ SC.selected }} 기준</div>
+<p class="ind" style="margin-top:0">본건은 {{ SC.time.reason_subject or '주거용부동산' }}으로서 인근지역 내 가격변동추이를 적절히 반영하는 것으로 판단되는 한국부동산원 “{{ SC.time.index_name }}”를 기준으로 비교 거래사례의 거래시점으로부터 기준시점까지의 시점수정치를 산정하였음.</p>
+<div class="src">[출처 : {{ SC.time.source }}]</div>
+<table class="tbl">
+  <colgroup><col style="width:14%"><col style="width:18%"><col style="width:16%"><col><col style="width:18%"></colgroup>
+  <tr><th>사례<br>기호</th><th>구분</th><th>매매가격지수</th><th>산출내역</th><th>상승률(%)</th></tr>
+  <tr><td rowspan="2">거래사례<br>{{ SC.selected }}</td><td>{{ SC.time.trade_month }}</td><td>{{ SC.time.trade_index }}</td><td rowspan="2">{{ SC.time.region }}<br>({{ SC.time.base_index }} - {{ SC.time.trade_index }}) / {{ SC.time.trade_index }} × 100<br>= {{ c.time_pct }} ({{ '%.5f'|format(c.time_factor) }})</td><td rowspan="2">{{ c.time_pct }}<br>({{ '%.5f'|format(c.time_factor) }})</td></tr>
+  <tr><td>{{ SC.time.base_month }}</td><td>{{ SC.time.base_index }}</td></tr>
+</table>
+{% else %}
+<div class="bullet">비교거래사례{{ SC.selected }} 기준</div>
+<p class="ind" style="margin-top:0">한국부동산원이 조사·발표하는 “{{ SC.time.index_name }}”을 활용하여 시점수정치를 산정하였음.</p>
+<table class="tbl">
+  <colgroup><col style="width:17%"><col style="width:16%"><col style="width:19%"><col></colgroup>
+  <tr><th>시군구</th><th>상승률<br>(시점수정치)</th><th colspan="2">산출근거</th></tr>
+  <tr><td rowspan="3" class="pre">{{ SC.time.region }}</td><td rowspan="3">{{ c.time_pct }}<br>({{ '%.5f'|format(c.time_factor) }})</td><th>거래시점 /<br>기준시점</th><td>{{ SC.time.trade_date }} /<br>{{ R.base_date|replace('-', '.') }}</td></tr>
+  <tr><th>분기별<br>자본수익률</th><td style="line-height:1.6">{{ SC.time.area_label }}<br>{% for q in SC.time.quarters %}{{ q.label }} : {{ q.rate }}{% if q.note %} ({{ q.note }}){% endif %}<br>{% endfor %}</td></tr>
+  <tr><th>산식</th><td style="font-size:8.5pt;word-break:break-all">{{ c.time_formula }} ≒ {{ '%.5f'|format(c.time_factor) }}</td></tr>
+</table>
+{% endif %}
+{% if SC.time.footnote %}<p class="note">※ {{ SC.time.footnote }}</p>{% endif %}
+
+{% if SC.factor_items %}{{ op_close(pg.n) }}
+{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">바. 가치형성요인 비교</h4>{% else %}
+<h4 class="sub" style="margin-top:7mm">바. 가치형성요인 비교</h4>{% endif %}
+{% if SC.region_factor is defined %}<p class="ind"><b>1) 지역요인</b> : {{ SC.region_text }} ({{ '%.2f'|format(SC.region_factor) }})</p>
+<p class="ind"><b>2) 개별요인</b></p>{% endif %}
+{% if SC.factor_items %}
+<div class="bullet">개별요인 비교항목({{ SC.use_label or '주거용' }})</div>
+<table class="tbl" style="font-size:8.4pt">
+  <colgroup><col style="width:13%"><col style="width:27%"><col></colgroup>
+  <tr><th>조건</th><th>항목</th><th>세항목</th></tr>
+  {% for g in SC.factor_items %}{% for it in g['items'] %}<tr>{% if loop.first %}<td rowspan="{{ g['items']|length }}">{{ g.cond|nl2br }}</td>{% endif %}<td>{{ it[0] }}</td><td class="l">{{ it[1] }}</td></tr>{% endfor %}{% endfor %}
+</table>
+{{ op_close(pg.n) }}
+{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+{% endif %}
+<div class="bullet">{{ SC.use_label or '상업용' }}[일련번호 {% for u in d.units %}{{ u.code }}{% endfor %}] / 비교사례 {{ SC.selected }}</div>
+<table class="tbl">
+  <colgroup><col style="width:13%"><col><col style="width:11%"><col style="width:27%"></colgroup>
+  <tr><th>조 건</th><th>세부항목({{ SC.use_label or '상업용' }})</th><th>격차율</th><th>비고</th></tr>
+  {% for f in SC.factors %}<tr><td class="pre">{{ f.cond }}</td><td style="font-size:8.6pt">{{ f['items'] }}</td><td>{{ '%.2f'|format(f.rate) }}</td><td style="font-size:8.6pt">{{ f.note }}</td></tr>{% endfor %}
+  <tr class="total"><td colspan="2">가치형성요인 비교치 (누계)</td><td>{{ '%.3f'|format(c.value_factor) }}</td><td>-</td></tr>
+</table>
+{{ op_close(pg.n) }}
+
+{# ---- p7 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">사. 거래사례비교법에 의한 비준가액</h4>
+<table class="tbl" style="font-size:8.6pt">
+  <tr><th colspan="3">본 건</th>{% set RF = SC.region_factor is defined %}<th colspan="{{ 7 if RF else 6 }}">거래사례비교법에 따른 시산가액(단가) 산정</th><th rowspan="3">산정가액<br>(원)</th><th rowspan="3">시산가액<br>(원)</th></tr>
+  <tr><th rowspan="2">일련<br>번호</th><th rowspan="2">{% if d.units[0].dong %}동/{% endif %}층/<br>호수</th><th rowspan="2">전유<br>면적(㎡)</th><th colspan="2">거래사례</th><th rowspan="2">사정<br>보정</th><th rowspan="2">시점<br>수정</th>{% if RF %}<th rowspan="2">지역<br>요인</th>{% endif %}<th rowspan="2">{{ '개별<br>요인'|safe if RF else '가치<br>형성<br>요인'|safe }}</th><th rowspan="2">산정단가<br>(원/전유㎡)</th></tr>
+  <tr><th>번호</th><th>단가<br>(원/전유㎡)</th></tr>
+  {% for r in c.sc_rows %}<tr><td>{{ r.unit.code }}</td><td>{% if r.unit.dong %}{{ r.unit.dong }}/<br>{% endif %}{{ r.unit.floor }}/<br>{{ r.unit.ho }}</td><td>{{ r.unit.area|area }}</td><td>{{ SC.selected }}</td><td>{{ r.case_unit|won }}</td><td>{{ '%.3f'|format(SC.situation_factor) }}</td><td>{{ '%.5f'|format(c.time_factor) }}</td>{% if RF %}<td>{{ '%.3f'|format(SC.region_factor) }}</td>{% endif %}<td>{{ '%.3f'|format(c.value_factor) }}</td><td>{{ r.unit_price|won }}</td><td>{{ r.computed|won }}</td><td>{{ r.value|won }}</td></tr>{% endfor %}
+  <tr class="total"><td colspan="2">합계</td><td>{{ c.sc_total_area|area }}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>{% if RF %}<td>-</td>{% endif %}<td>-</td><td>-</td><td>{{ c.sc_total|won }}</td></tr>
+</table>
+<p class="note">※ 산정단가는 {{ SC.unit_round|won }}원 단위 반올림, 시산가액은 {{ SC.value_round|won }}원 미만 절사함.</p>
+{% if INC %}
+<h3 class="sec" style="margin-top:9mm">2. 수익환원법에 의한 시산가액 산출</h3>
+<h4 class="sub">가. 개요</h4>
+<p class="ind">본건은 수익성 부동산으로 본건의 적정임대수준을 추정하여 대상 부동산이 장래 산출할 것으로 기대되는 순수익을 환원율로 환원하여 대상물건의 가액을 산정함.</p>
+<div class="formula">수익가액 = 기대 순수익 ÷ 환원이율</div>
+<h4 class="sub">나. 가능총수익(PGI) 산정</h4>
+<h5 class="ssub">1) 본건의 임대현황 및 적정임대수준</h5>
+<table class="tbl">
+  <tr><th rowspan="2">구분</th><th rowspan="2">이용상황</th><th colspan="3">임대내역(현황 임대료)</th><th rowspan="2">기타</th></tr>
+  <tr><th>임대보증금(원)</th><th>월임대료(원)</th><th>월관리비(원)</th></tr>
+  {% for r in INC.rent_status %}<tr><td>{{ r.label }}</td><td class="pre">{{ r.use }}</td><td>{{ r.deposit|won }}</td><td>{{ r.monthly|won }}</td><td>{{ r.mgmt|won }}</td><td class="pre">{{ r.note }}</td></tr>{% endfor %}
+</table>
+{{ op_close(pg.n) }}
+
+{# ---- p8 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h5 class="ssub">2) 본건의 적정임대수준</h5>
+<table class="tbl">
+  <tr><th style="width:20%">구 분</th><th>적정 임대수준(원/월)</th><th style="width:18%">비 고</th></tr>
+  {% for r in INC.rent_levels %}<tr><td>{{ r.label }}</td><td>{{ r.range }}</td><td>{{ r.note }}</td></tr>{% endfor %}
+</table>
+<h5 class="ssub">3) 본건의 적용 임대료 결정</h5>
+<table class="tbl">
+  <tr><th rowspan="2" style="width:18%">기호</th><th colspan="3">적용 임대료</th><th rowspan="2" style="width:16%">비고</th></tr>
+  <tr><th>보증금</th><th>월임대료</th><th>관리비</th></tr>
+  {% for u in d.units %}<tr><td>{{ u.code }}</td><td>{{ (INC.applied.deposit or None)|won }}</td><td>{{ INC.applied.monthly|won }}</td><td>{{ (INC.applied.mgmt or None)|won }}</td><td>-</td></tr>{% endfor %}
+</table>
+<p class="note">※ 인근지역 내 형성되고 있는 유사건물의 임대료를 비교·검토하여 본건의 적용임대료를 결정하였음.<br>※ 관리비는 대상물건의 특성상 운영경비와 상계되는 점을 감안하여 별도 고려하지 아니함.</p>
+<h5 class="ssub">4) 본건의 가능총수익(PGI) 산정</h5>
+<table class="tbl">
+  <tr><th>구분</th><th>보증금(원)</th><th>보증금<br>운용이익(원)</th><th>월임대료<br>(원)</th><th>연간임대료<br>(원)</th><th>월관리비<br>(원)</th><th>연간관리비<br>(원)</th><th>가능총소득<br>(PGI)(원)</th></tr>
+  <tr><td>1</td><td>{{ (INC.applied.deposit or None)|won }}</td><td>{{ (CI.deposit_income or None)|won }}</td><td>{{ INC.applied.monthly|won }}</td><td>{{ CI.annual_rent|won }}</td><td>{{ (INC.applied.mgmt or None)|won }}</td><td>{{ (CI.annual_mgmt or None)|won }}</td><td>{{ CI.pgi|won }}</td></tr>
+  <tr class="total"><td colspan="7">합 계</td><td>{{ CI.pgi|won }}</td></tr>
+</table>
+<h4 class="sub">다. 공실손실 상당액 및 대손충당금, 영업경비의 결정</h4>
+<p class="ind">공실손실 상당액 및 대손충당금은 부동산 수요변동으로 인한 정상적인 공실률 및 불량부채로 인한 손실을 보전하기 위한 항목으로서, 인근 유사부동산의 공실비율 및 향후 수요예측에 따른 위험성을 감안하여 가능총수익(PGI)의 <b>&lt;{{ INC.vacancy_rate }}%&gt;</b> 수준으로 결정하였음.</p>
+<table class="tbl">
+  <tr><th rowspan="2">구분</th><th rowspan="2">지역</th><th colspan="{{ INC.vacancy_stats.labels|length }}">공실률(%)</th><th rowspan="2">연간<br>평균</th></tr>
+  <tr>{% for l in INC.vacancy_stats.labels %}<th>{{ l }}</th>{% endfor %}</tr>
+  <tr><td>{{ INC.vacancy_stats.kind }}</td><td>{{ INC.vacancy_stats.region }}</td>{% for v in INC.vacancy_stats['values'] %}<td>{{ '%.2f'|format(v) }}</td>{% endfor %}<td>{{ '%.2f'|format(CI.vacancy_avg) }}</td></tr>
+</table>
+<div class="src">(출처 : 한국부동산원 부동산통계시스템)</div>
+<p class="ind">영업경비에는 제세공과금, 보험료, 유지관리비, 감가상각비 등 임대 부동산에 관리에 있어 발생하는 실제 비용을 말하며, 인근 유사부동산의 실제 영업경비 지출내역 등을 고려하여 유효총수익의 <b>&lt;{{ INC.opex_rate }}%&gt;</b> 수준으로 적용하였음.</p>
+{{ op_close(pg.n) }}
+
+{# ---- p9 #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">라. 환원율의 결정</h4>
+<h5 class="ssub">1) 금융시장의 금리</h5>
+<table class="tbl">
+  <tr><th>항목명</th><th>CD유통<br>수익률</th><th>국고채<br>(1년)</th><th>국고채<br>(3년)</th><th>국고채<br>(5년)</th><th>회사채<br>(장외3년,<br>AA-등급)</th><th>회사채<br>(장외3년,<br>BBB-등급)</th></tr>
+  <tr><th>단위</th>{% for i in range(6) %}<th style="font-weight:400">연%</th>{% endfor %}</tr>
+  {% for r in INC.interest.rows %}<tr>{% for v in r %}<td>{% if loop.first %}{{ v }}{% else %}{{ '%.2f'|format(v) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<div class="src">(출처 : 한국은행 경제통계시스템)</div>
+<h5 class="ssub">2) 집합상가의 수익률</h5>
+{% set RT = INC.returns %}
+<table class="tbl">
+  <tr><th rowspan="2">구분</th><th rowspan="2">지역</th><th colspan="{{ RT.labels|length }}">투자수익률(%)</th><th rowspan="2">연간<br>환산</th><th colspan="{{ RT.labels|length }}">소득수익률(%)</th><th rowspan="2">연간<br>환산</th></tr>
+  <tr>{% for l in RT.labels %}<th class="pre">{{ l }}</th>{% endfor %}{% for l in RT.labels %}<th class="pre">{{ l }}</th>{% endfor %}</tr>
+  <tr><td>집합<br>상가</td><td>{{ INC.vacancy_stats.region }}</td>{% for v in RT.investment %}<td>{{ '%.2f'|format(v) }}</td>{% endfor %}<td>{{ '%.2f'|format(RT.investment_annual) }}%</td>{% for v in RT.income %}<td>{{ '%.2f'|format(v) }}</td>{% endfor %}<td>{{ '%.2f'|format(RT.income_annual) }}%</td></tr>
+</table>
+<div class="src">(출처 : 한국부동산원 부동산통계시스템)</div>
+<h5 class="ssub">3) 환원율의 결정</h5>
+<p class="ind">본건 환원율의 결정은 국토교통부에서 발표하는 “상업용 부동산 임대사례 조사보고서” 및 시중은행의 금리, CD 수익률 및 3년 만기 국고채 수익률, 본건 임대수익의 안정성과 평가목적을 종합적으로 고려하여 환원율은 <b>&lt;{{ INC.cap_rate }}%&gt;</b>로 결정함.</p>
+
+{{ op_close(pg.n) }}
+
+{# ---- p9b #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h4 class="sub">마. 수익환원법에 의한 시산가액</h4>
+<div class="src">[단위 : 원]</div>
+<table class="tbl">
+  <colgroup><col style="width:38%"><col style="width:32%"><col></colgroup>
+  <tr><th>항목</th><th>기호 ({% for u in d.units %}{{ u.code }}{% endfor %})</th><th>비고</th></tr>
+  <tr><td>가능총수익(PGI)(a)</td><td>{{ CI.pgi|won }}</td><td>-</td></tr>
+  <tr><td>공실손실상당액 및 대손충당금(V&amp;L)(b)</td><td>{{ CI.vl|won }}</td><td>가능총수익의 {{ INC.vacancy_rate }}% 적용</td></tr>
+  <tr><td>기타수익(c)</td><td>{{ (CI.other or None)|won }}</td><td>별도의 기타소득 없음.</td></tr>
+  <tr><td>유효총수익(EGI)(d=a-b+c)</td><td>{{ CI.egi|won }}</td><td>-</td></tr>
+  <tr><td>영업경비(OE)(e)</td><td>{{ CI.oe|won }}</td><td>유효총수익의 {{ INC.opex_rate }}% 적용</td></tr>
+  <tr><td>순수익(NOI)(f=d-e)</td><td>{{ CI.noi|won }}</td><td>-</td></tr>
+  <tr><td>환원율(R)</td><td>{{ INC.cap_rate }}%</td><td>-</td></tr>
+  <tr><td>수익가액(NOI/R)</td><td>{{ CI.value|won }}</td><td>{{ INC.value_round|won }}원 미만 절사</td></tr>
+  <tr class="total"><td>시산가액</td><td>{{ CI.value|won }}</td><td>-</td></tr>
+</table>
+{% endif %}
+{{ op_close(pg.n) }}
+
+{# ---- p10: Ⅳ #}{% set pg.n = pg.n + 1 %}
+{{ op_open() }}
+<h2 class="chap">Ⅳ. 감정평가액의 결정에 관한 의견</h2>
+<h3 class="sec">1. 시산가액</h3>
+{% macro vtable(vals, total, bold=False) -%}
+<table class="tbl">
+  <colgroup><col style="width:11%"><col style="width:27%"><col style="width:20%"><col style="width:26%"><col></colgroup>
+  <tr><th>기호</th><th>층, 호수</th><th>전유면적(㎡)</th><th>시산가액(원)</th><th>비고</th></tr>
+  {% for u in d.units %}<tr><td>{{ u.code }}</td><td>{{ u.label }}</td><td>{{ u.area|area }}</td><td>{{ vals[loop.index0]|won }}</td><td>-</td></tr>{% endfor %}
+  <tr class="total"><td colspan="3">합 계</td><td>{{ total|won }}</td><td>-</td></tr>
+</table>
+{%- endmacro %}
+<h4 class="sub">가. 거래사례비교법에 의한 시산가액</h4>
+{{ vtable(c.sc_rows|map(attribute='value')|list, c.sc_total) }}
+{% if INC %}<h4 class="sub">나. 수익환원법에 의한 시산가액</h4>
+{{ vtable([CI.value], CI.value) }}{% endif %}
+<h3 class="sec">2. 시산가액의 조정 및 결정의견</h3>
+<p class="ind">{{ d.opinion.reconciliation }}</p>
+<h3 class="sec">3. 감정평가액의 결정</h3>
+{{ vtable(c.sc_rows|map(attribute='value')|list, c.final) }}
+<p style="text-align:right;margin-top:4mm;font-weight:700">감정평가액 : {{ c.final_korean }}원정 (₩{{ c.final|won }}.-)</p>
+{{ op_close(pg.n) }}
+
+{# ============================================================ 요항표 #}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="form-title">({{ R.property_kind }}) 감정평가요항표</div>
+  <div class="rule"><i></i><i></i></div>
+  <table class="tbl" style="margin-top:6mm;font-size:9.6pt">
+    <colgroup><col style="width:24%"><col></colgroup>
+    <tr><th>기 재 사 항</th><th>내 역</th></tr>
+    {% for k, v in d.summary_items %}<tr style="height:{{ 19 if d.summary_items|length <= 9 else 13 }}mm"><th class="pre" style="background:var(--soft-2);font-weight:700">{{ k }}</th><td class="l pre" style="line-height:1.75;padding:2.5mm 3mm">{{ v }}</td></tr>{% endfor %}
+  </table>
+</section>
+
+{# ============================================================ 위치도 #}
+{% for key, title in [('wide', '광 역 위 치 도'), ('detail', '상 세 위 치 도')] %}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="form-title">{{ title }}</div>
+  <div class="rule"><i></i><i></i></div>
+  <table class="tbl" style="margin:4mm 0 3mm"><tr><th style="width:22%">소 재 지</th><td>{{ CX.jibun_address }} {{ CX.building_name }} {% for u in d.units %}{{ u.label }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr></table>
+  <div class="mapbox">{% set src = img(d.maps[key]) %}{% if src %}<img src="{{ src }}">{% else %}<div class="ph">[ {{ title|replace(' ', '') }} 이미지 ]<br>data JSON의 maps.{{ key }} 에 이미지 경로를 넣으면 이 자리에 들어갑니다.</div>{% endif %}</div>
+  <div class="legend"><span>[ 범 례 ]</span><span style="color:#c0392b">■ 본 건</span><span style="color:#3d6b2b">■ 평가사례</span><span style="color:#8e3b6e">■ 거래사례</span></div>
+</section>
+{% endfor %}
+
+{# ============================================================ 사진 #}
+{% set PP = d.photos_per_page or 2 %}
+{% for i in range(0, d.photos|length, PP) %}
+<section class="page">
+  <div class="docno"><span>{{ R.number }}</span><span class="brandmini">{{ O.name }}</span></div>
+  <div class="form-title" style="text-decoration:underline;text-underline-offset:6px">사 진 첨 부 용 지</div>
+  <div class="rule"><i></i><i></i></div>
+  {% if PP == 4 %}
+  <div class="grid4">
+    {% for p in d.photos[i:i+4] %}
+    <div class="g"><div class="gh">{{ p.caption }}</div><div class="frame">{% set src = img(p.file) %}{% if src %}<img src="{{ src }}">{% else %}<div class="ph">[ 사진 ]<br>photos[{{ i + loop.index0 }}].file</div>{% endif %}</div></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="photos">
+    {% for p in d.photos[i:i+2] %}
+    <div class="photo"><div class="frame">{% set src = img(p.file) %}{% if src %}<img src="{{ src }}">{% else %}<div class="ph">[ 사진 ]<br>photos[{{ i + loop.index0 }}].file</div>{% endif %}</div><div class="cap">{{ p.caption }}</div></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+
+</body>
+</html>
