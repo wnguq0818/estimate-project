@@ -90,7 +90,6 @@ table { border-collapse: collapse; width: 100%; }
 .cover .meta td.v { font-weight: 700; }
 .cover .notice { position: absolute; left: 34mm; right: 34mm; bottom: 66mm; border: 1px solid #888; padding: 3mm 4mm; font-size: 9pt; text-align: center; line-height: 1.7; color: #333; }
 .cover .office { position: absolute; left: 0; right: 0; bottom: 26mm; text-align: center; }
-.cover .office .logo { display: inline-flex; align-items: center; gap: 4mm; }
 .cover .office .name { font-size: 18pt; font-weight: 800; letter-spacing: .08em; }
 .cover .office .name em { font-style: normal; color: var(--brand); }
 .cover .office .contact { margin-top: 3mm; font-size: 9.5pt; font-weight: 700; color: #333; letter-spacing: .03em; }
@@ -142,14 +141,7 @@ table { border-collapse: collapse; width: 100%; }
 <body>
 
 {# ============================================================ 표지 #}
-{% macro logo(size=16) -%}
-<svg width="{{ size }}mm" height="{{ size }}mm" viewBox="0 0 64 64" aria-hidden="true">
-  <rect x="2" y="2" width="60" height="60" rx="6" fill="#16443a"/>
-  <rect x="6" y="6" width="52" height="52" rx="3" fill="none" stroke="#a8873a" stroke-width="1.5"/>
-  <text x="32" y="29" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="NanumSquare, 'Noto Sans KR', sans-serif">경</text>
-  <text x="32" y="50" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="NanumSquare, 'Noto Sans KR', sans-serif">율</text>
-</svg>
-{%- endmacro %}
+
 
 <section class="page cover">
   <div class="frame"></div><div class="band"></div>
@@ -172,8 +164,8 @@ table { border-collapse: collapse; width: 100%; }
     감정평가법인등은 책임을 지지 않습니다.
   </div>
   <div class="office">
-    <div class="logo">{{ logo(15) }}<div class="name">감정평가사사무소 <em>{{ O.name_short }}</em></div></div>
-    <div class="contact"><span>TEL. {{ O.tel }}</span><span>FAX. {{ O.fax }}</span></div>
+    <div class="name">감정평가사사무소 <em>{{ O.name_short }}</em></div>
+    <div class="contact"><span>TEL. {{ O.tel }}</span>{% if O.mobile %}<span>H.P. {{ O.mobile }}</span>{% endif %}{% if O.fax %}<span>FAX. {{ O.fax }}</span>{% endif %}</div>
     <div class="contact" style="font-weight:400;margin-top:1mm">{{ O.address }}</div>
   </div>
 </section>
