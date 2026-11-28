@@ -196,6 +196,10 @@ def compute(d):
 # ---------------------------------------------------------------- 빌드
 def build(data_path: Path, html_only=False):
     d = json.loads(data_path.read_text(encoding="utf-8"))
+    # 감정서번호: GY접수연도-접수월일-일련번호(3자리), 예) GY2025-0918-001
+    rpt = d["report"]
+    y, m, dd = rpt["received_date"].split("-")
+    rpt["number"] = f"GY{y}-{m}{dd}-{int(rpt.get('seq', 1)):03d}"
     calc = compute(d)
     base = data_path.parent.parent  # appraisal_report/
 
